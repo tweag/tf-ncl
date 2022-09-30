@@ -1,0 +1,3 @@
+target
+.terraform*
+.pre-commit-config.yaml
