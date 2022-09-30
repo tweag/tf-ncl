@@ -128,6 +128,7 @@
         buildInputs = with pkgs; [
           terraform
           inputs.nickel.packages.${system}.default
+          rust-analyzer
         ];
       };
     });
