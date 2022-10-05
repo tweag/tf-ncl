@@ -874,6 +874,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ncl-dbg"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap 4.0.4",
+ "nickel-lang",
+ "nickel-lang-utilities",
+ "pretty",
+]
+
+[[package]]
 name = "new_debug_unreachable"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

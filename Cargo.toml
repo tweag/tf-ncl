@@ -1,4 +1,6 @@
 [workspace]
+default-members = ["tf-ncl"]
 members = [
-  "tf-ncl"
+  "tf-ncl",
+  "ncl-dbg"
 ]

@@ -1,0 +1,12 @@
+[package]
+name = "ncl-dbg"
+version = "0.1.0"
+authors = ["vkleen"]
+edition = "2018"
+
+[dependencies]
+clap = { version = "4.0.4", features = ["cargo", "derive"] }
+anyhow = "1.0"
+nickel-lang = { git = "https://github.com/tweag/nickel" }
+pretty = "0.11"
+nickel-lang-utilities = { git = "https://github.com/tweag/nickel" }
