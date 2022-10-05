@@ -9,6 +9,8 @@ use tf_ncl::{nickel::AsNickel, terraform::TFSchema};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    #[arg(value_name = "PROVIDER-NAME")]
+    provider: String, //TODO(vkleen): This is not going to work for schemas with multiple providers
     #[arg(value_name = "FILE")]
     schema: Option<PathBuf>,
 }
@@ -20,8 +22,12 @@ fn main() -> anyhow::Result<()> {
     } else {
         Box::new(std::io::stdin())
     };
+
     let schema: TFSchema = serde_json::from_reader(schema_reader)?;
-    let pretty_ncl_schema: BoxDoc = schema.as_nickel().pretty(&BoxAllocator).into_doc();
+    let pretty_ncl_schema: BoxDoc = (opts.provider, schema)
+        .as_nickel()
+        .pretty(&BoxAllocator)
+        .into_doc();
     pretty_ncl_schema.render(80, &mut stdout())?;
     println!("");
 
