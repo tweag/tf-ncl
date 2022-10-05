@@ -23,22 +23,7 @@ fn main() -> anyhow::Result<()> {
     let schema: TFSchema = serde_json::from_reader(schema_reader)?;
     let pretty_ncl_schema: BoxDoc = schema.as_nickel().pretty(&BoxAllocator).into_doc();
     pretty_ncl_schema.render(80, &mut stdout())?;
+    println!("");
 
-    //for (provider, schema) in schema.provider_schemas {
-    //    println!("{}", provider);
-    //    println!("{:?}", schema.provider.block);
-    //    println!();
-    //    for (data_source, schema) in schema.data_source_schemas.iter().flatten() {
-    //        println!("{}", data_source);
-    //        for (n, a) in schema.block.attributes.iter().flatten() {
-    //            println!("  {}", n);
-    //            println!("    type: {:?}", a.r#type);
-    //            println!("    required: {}", a.required);
-    //            println!("    optional: {}", a.optional);
-    //            println!("    computed: {}", a.computed);
-    //            println!("    sensitive: {}", a.sensitive);
-    //        }
-    //    }
-    //}
     Ok(())
 }
