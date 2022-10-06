@@ -1,14 +1,11 @@
 use crate::terraform::{TFBlock, TFBlockAttribute, TFSchema, TFType};
-use nickel_lang::identifier::Ident;
+use nickel_lang::mk_record;
 use nickel_lang::parser::utils::{build_record, FieldPathElem};
-use nickel_lang::stdlib::contract;
-use nickel_lang::term::make::{op1, var};
-use nickel_lang::term::{Contract, MergePriority, MetaValue, RichTerm, Term, UnaryOp};
+use nickel_lang::term::{Contract, MergePriority, MetaValue, RecordAttrs, RichTerm, Term};
 use nickel_lang::types::{AbsType, Types};
-use nickel_lang::{mk_app, mk_record};
 
 pub trait AsNickel {
-    fn as_nickel(&self, lib_import: &RichTerm) -> RichTerm;
+    fn as_nickel(&self) -> RichTerm;
 }
 
 fn with_priority(prio: MergePriority, term: impl Into<RichTerm>) -> RichTerm {
@@ -40,7 +37,7 @@ fn contract_metavalue(contract: impl Into<Contract>) -> RichTerm {
 }
 
 impl AsNickel for (String, TFSchema) {
-    fn as_nickel(&self, lib_import: &RichTerm) -> RichTerm {
+    fn as_nickel(&self) -> RichTerm {
         let provider_name = &self.0;
         let provider_schemas = &self.1.provider_schemas;
         //TODO(vkleen): figure out how to best map provider URLs to names
@@ -53,73 +50,74 @@ impl AsNickel for (String, TFSchema) {
             )
         });
 
-        mk_record! {
-            ("terraform", with_priority(MergePriority::Bottom, mk_record!{
+        build_record(vec![
+            (FieldPathElem::Ident("terraform".into()), with_priority(MergePriority::Bottom, mk_record!{
                 ("required_providers", build_record(required_providers, Default::default()))
-            })),
-            ("provider", mk_record!{
-                (provider_name, contract_metavalue(term_contract(provider_schemas.values().next().unwrap().provider.block.as_nickel(lib_import))))
-            })
-        }
+            }).into()),
+            (FieldPathElem::Ident("provider".into()), mk_record!{
+                (provider_name, contract_metavalue(term_contract(provider_schemas.values().next().unwrap().provider.block.as_nickel())))
+            }.into()),
+            (FieldPathElem::Ident("resource".into()), mk_record!{
+                ("aws_default_route_table", mk_record!{
+                    ("this", contract_metavalue(term_contract(provider_schemas.values().next().unwrap().resource_schemas.as_ref().unwrap().get("aws_default_route_table").unwrap().block.as_nickel())))
+                })
+            }.into()),
+        ], RecordAttrs { open: true, ..Default::default() }).into()
     }
 }
 
 impl AsNickel for TFBlock {
-    fn as_nickel(&self, lib_import: &RichTerm) -> RichTerm {
+    fn as_nickel(&self) -> RichTerm {
         let attribute_fields = self
             .attributes
             .iter()
             .flatten()
-            .map(|(k, v)| (FieldPathElem::Ident(k.into()), v.as_nickel(lib_import)));
+            .map(|(k, v)| (FieldPathElem::Ident(k.into()), v.as_nickel()));
         build_record(attribute_fields, Default::default()).into()
     }
 }
 
-fn from_lib(lib_import: &RichTerm, i: &str) -> RichTerm {
-    op1(UnaryOp::StaticAccess(Ident::new(i)), lib_import.clone())
-}
-
 impl AsNickel for TFBlockAttribute {
-    fn as_nickel(&self, lib_import: &RichTerm) -> RichTerm {
-        let mv = MetaValue {
+    fn as_nickel(&self) -> RichTerm {
+        Term::MetaValue(MetaValue {
             doc: self.description.clone(),
-            contracts: vec![term_contract(self.r#type.as_nickel(lib_import))],
+            opt: !self.required,
+            types: Some(Contract {
+                types: self.r#type.as_nickel_type(),
+                label: Default::default(),
+            }),
             ..Default::default()
-        };
-        Term::MetaValue(if self.required {
-            mv
-        } else {
-            MetaValue {
-                contracts: vec![term_contract(mk_app!(
-                    from_lib(lib_import, "Nullable"),
-                    self.r#type.as_nickel(lib_import)
-                ))],
-                opt: true,
-                priority: MergePriority::Bottom,
-                value: Some(Term::Null.into()),
-                ..mv
-            }
         })
         .into()
     }
 }
 
-impl AsNickel for TFType {
-    fn as_nickel(&self, lib_import: &RichTerm) -> RichTerm {
+pub trait AsNickelType {
+    fn as_nickel_type(&self) -> Types;
+}
+
+impl AsNickelType for TFType {
+    fn as_nickel_type(&self) -> Types {
         match self {
-            TFType::String => var("Str"),
-            TFType::Number => var("Num"),
-            TFType::Bool => var("Bool"),
-            TFType::List(inner) => mk_app!(var("Array"), inner.as_nickel(lib_import)),
-            TFType::Map(inner) => mk_app!(
-                from_lib(lib_import, "dyn_record"),
-                inner.as_nickel(lib_import)
-            ),
+            TFType::String => Types(AbsType::Str()),
+            TFType::Number => Types(AbsType::Num()),
+            TFType::Bool => Types(AbsType::Bool()),
+            TFType::List(inner) => Types(AbsType::Array(Box::new(inner.as_nickel_type()))),
+            TFType::Map(inner) => Types(AbsType::DynRecord(Box::new(inner.as_nickel_type()))),
             //TODO(vkleen): Maybe there should be a contract enforcing uniqueness here? Terraform
             //docs seem to indicate that they will implicitely throw away duplicates.
-            TFType::Set(inner) => mk_app!(var("Array"), inner.as_nickel(lib_import)),
-            TFType::Object(_) => todo!(),
-            TFType::Tuple(_) => todo!(),
+            TFType::Set(inner) => Types(AbsType::Array(Box::new(inner.as_nickel_type()))),
+            TFType::Object(fields) => Types(AbsType::StaticRecord(Box::new(fields.iter().fold(
+                Types(AbsType::RowEmpty()),
+                |acc, (k, t)| {
+                    Types(AbsType::RowExtend(
+                        k.into(),
+                        Some(Box::new(t.as_nickel_type())),
+                        Box::new(acc),
+                    ))
+                },
+            )))),
+            TFType::Tuple(_) => unimplemented!(),
         }
     }
 }

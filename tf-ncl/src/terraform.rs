@@ -118,6 +118,9 @@ impl<'de> Deserialize<'de> for TFType {
                         seq.next_element::<TFType>()?
                             .ok_or(serde::de::Error::invalid_length(1, &self))?,
                     ))),
+                    //TODO(vkleen): some providers use object types with implicitely optional
+                    //fields; this doesn't seem to be documented anywhere in a machine readable
+                    //format
                     "object" => Ok(TFType::Object(
                         seq.next_element::<HashMap<String, TFType>>()?
                             .ok_or(serde::de::Error::invalid_length(1, &self))?,

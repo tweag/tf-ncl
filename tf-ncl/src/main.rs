@@ -25,10 +25,8 @@ fn main() -> anyhow::Result<()> {
     };
 
     let schema: TFSchema = serde_json::from_reader(schema_reader)?;
-    //TODO(vkleen): This needs to be much more principled
-    let lib_import = parse(r#"import "./lib.ncl""#).unwrap();
     let pretty_ncl_schema: BoxDoc = (opts.provider, schema)
-        .as_nickel(&lib_import)
+        .as_nickel()
         .pretty(&BoxAllocator)
         .into_doc();
     pretty_ncl_schema.render(80, &mut stdout())?;

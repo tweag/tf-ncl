@@ -2,7 +2,7 @@
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-unstable";
     utils.url = github:numtide/flake-utils;
-    nickel.url = github:tweag/nickel;
+    nickel.url = github:tweag/nickel/pretty/add_optional;
     import-cargo.url = github:edolstra/import-cargo;
     rust-overlay = {
       url = github:oxalica/rust-overlay;
