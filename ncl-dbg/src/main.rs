@@ -1,8 +1,8 @@
 use std::io::Cursor;
 
 use nickel_lang::term::RichTerm;
-use nickel_lang_utilities::{parse, eval};
-use pretty::{Pretty, BoxAllocator, DocBuilder};
+use nickel_lang_utilities::{eval, parse};
+use pretty::{BoxAllocator, DocBuilder, Pretty};
 
 fn pretty(rt: &RichTerm) -> String {
     let allocator = BoxAllocator;

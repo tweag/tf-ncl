@@ -21,6 +21,11 @@ fn term_contract(term: impl Into<RichTerm>) -> Contract {
     type_contract(Types(AbsType::Flat(term.into())))
 }
 
+fn dyn_record_contract(term: impl Into<RichTerm>) -> Contract {
+    type_contract(Types(AbsType::DynRecord(Box::new(Types(AbsType::Flat(
+        term.into(),
+    ))))))
+}
 fn type_contract(t: impl Into<Types>) -> Contract {
     Contract {
         types: t.into(),
@@ -42,25 +47,33 @@ impl AsNickel for (String, TFSchema) {
         let provider_schemas = &self.1.provider_schemas;
         //TODO(vkleen): figure out how to best map provider URLs to names
         assert!(provider_schemas.len() == 1);
-
-        let required_providers = provider_schemas.iter().map(|(k, _v)| {
-            (
-                FieldPathElem::Ident(provider_name.into()),
-                mk_record! {("source", Term::Str(k.to_string()))},
-            )
-        });
+        let provider_schema = provider_schemas.values().next().unwrap();
 
         build_record(vec![
-            (FieldPathElem::Ident("terraform".into()), with_priority(MergePriority::Bottom, mk_record!{
-                ("required_providers", build_record(required_providers, Default::default()))
-            }).into()),
+            (FieldPathElem::Ident("terraform".into()), {
+                let required_providers = provider_schemas.iter().map(|(k, _v)| {
+                    (
+                        FieldPathElem::Ident(provider_name.into()),
+                        mk_record! {("source", Term::Str(k.to_string()))},
+                    )
+                });
+                with_priority(MergePriority::Bottom, mk_record!{
+                    ("required_providers", build_record(required_providers, Default::default()))
+                }).into()
+            }),
             (FieldPathElem::Ident("provider".into()), mk_record!{
-                (provider_name, contract_metavalue(term_contract(provider_schemas.values().next().unwrap().provider.block.as_nickel())))
+                (provider_name, contract_metavalue(term_contract(provider_schema.provider.block.as_nickel())))
             }.into()),
-            (FieldPathElem::Ident("resource".into()), mk_record!{
-                ("aws_default_route_table", mk_record!{
-                    ("this", contract_metavalue(term_contract(provider_schemas.values().next().unwrap().resource_schemas.as_ref().unwrap().get("aws_default_route_table").unwrap().block.as_nickel())))
-                })
+            (FieldPathElem::Ident("resource".into()), {
+                let resources = provider_schema.resource_schemas.iter().flatten().map(|(k, v)| {
+                    (FieldPathElem::Ident(k.into()), Term::MetaValue(MetaValue {
+                        doc: v.block.description.clone(),
+                        types: Some(dyn_record_contract(v.block.as_nickel())),
+                        opt: true,
+                        ..Default::default()
+                    }).into())
+                });
+                build_record(resources, Default::default())
             }.into()),
         ], RecordAttrs { open: true, ..Default::default() }).into()
     }

@@ -1,5 +1,4 @@
 use clap::Parser;
-use nickel_lang_utilities::parse;
 use pretty::{BoxAllocator, BoxDoc, Pretty};
 use std::{
     io::{stdout, Read},
