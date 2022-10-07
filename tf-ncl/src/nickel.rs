@@ -1,7 +1,7 @@
-use crate::terraform::{TFBlock, TFBlockAttribute, TFSchema, TFType};
+use crate::terraform::{TFBlock, TFBlockAttribute, TFBlockType, TFSchema, TFType};
 use nickel_lang::mk_record;
 use nickel_lang::parser::utils::{build_record, FieldPathElem};
-use nickel_lang::term::{Contract, MergePriority, MetaValue, RecordAttrs, RichTerm, Term};
+use nickel_lang::term::{Contract, MergePriority, MetaValue, RichTerm, Term};
 use nickel_lang::types::{AbsType, Types};
 
 pub trait AsNickel {
@@ -73,9 +73,9 @@ impl AsNickel for (String, TFSchema) {
                         ..Default::default()
                     }).into())
                 });
-                build_record(resources, Default::default())
+                contract_metavalue(term_contract(build_record(resources, Default::default())))
             }.into()),
-        ], RecordAttrs { open: true, ..Default::default() }).into()
+        ], Default::default()).into()
     }
 }
 
@@ -86,7 +86,12 @@ impl AsNickel for TFBlock {
             .iter()
             .flatten()
             .map(|(k, v)| (FieldPathElem::Ident(k.into()), v.as_nickel()));
-        build_record(attribute_fields, Default::default()).into()
+        let block_fields = self
+            .block_types
+            .iter()
+            .flatten()
+            .map(|(k, v)| (FieldPathElem::Ident(k.into()), v.as_nickel()));
+        build_record(attribute_fields.chain(block_fields), Default::default()).into()
     }
 }
 
@@ -95,10 +100,30 @@ impl AsNickel for TFBlockAttribute {
         Term::MetaValue(MetaValue {
             doc: self.description.clone(),
             opt: !self.required,
-            types: Some(Contract {
-                types: self.r#type.as_nickel_type(),
-                label: Default::default(),
-            }),
+            types: Some(type_contract(self.r#type.as_nickel_type())),
+            ..Default::default()
+        })
+        .into()
+    }
+}
+
+impl AsNickel for TFBlockType {
+    fn as_nickel(&self) -> RichTerm {
+        fn wrap(t: &TFBlockType, nt: RichTerm) -> Types {
+            use crate::terraform::TFBlockNestingMode::*;
+            match t.nesting_mode {
+                Single => nt.as_nickel_type(),
+                List | Set => Types(AbsType::Array(Box::new(nt.as_nickel_type()))),
+                Map => Types(AbsType::DynRecord(Box::new(nt.as_nickel_type()))),
+            }
+        }
+        fn is_required(t: &TFBlockType) -> bool {
+            t.min_items.iter().any(|&x| x >= 1)
+        }
+
+        Term::MetaValue(MetaValue {
+            types: Some(type_contract(wrap(self, self.block.as_nickel()))),
+            opt: !is_required(self),
             ..Default::default()
         })
         .into()
@@ -107,6 +132,12 @@ impl AsNickel for TFBlockAttribute {
 
 pub trait AsNickelType {
     fn as_nickel_type(&self) -> Types;
+}
+
+impl AsNickelType for RichTerm {
+    fn as_nickel_type(&self) -> Types {
+        Types(AbsType::Flat(self.clone()))
+    }
 }
 
 impl AsNickelType for TFType {
