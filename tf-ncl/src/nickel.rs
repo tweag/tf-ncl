@@ -75,6 +75,18 @@ impl AsNickel for (String, TFSchema) {
                 });
                 contract_metavalue(term_contract(build_record(resources, Default::default())))
             }.into()),
+
+            (FieldPathElem::Ident("data".into()), {
+                let resources = provider_schema.data_source_schemas.iter().flatten().map(|(k, v)| {
+                    (FieldPathElem::Ident(k.into()), Term::MetaValue(MetaValue {
+                        doc: v.block.description.clone(),
+                        types: Some(dyn_record_contract(v.block.as_nickel())),
+                        opt: true,
+                        ..Default::default()
+                    }).into())
+                });
+                contract_metavalue(term_contract(build_record(resources, Default::default())))
+            }.into()),
         ], Default::default()).into()
     }
 }
