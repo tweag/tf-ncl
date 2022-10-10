@@ -33,14 +33,6 @@ fn type_contract(t: impl Into<Types>) -> Contract {
     }
 }
 
-fn contract_metavalue(contract: impl Into<Contract>) -> RichTerm {
-    Term::MetaValue(MetaValue {
-        contracts: vec![contract.into()],
-        ..Default::default()
-    })
-    .into()
-}
-
 impl AsNickel for (String, TFSchema) {
     fn as_nickel(&self) -> RichTerm {
         let provider_name = &self.0;
@@ -49,45 +41,92 @@ impl AsNickel for (String, TFSchema) {
         assert!(provider_schemas.len() == 1);
         let provider_schema = provider_schemas.values().next().unwrap();
 
-        build_record(vec![
-            (FieldPathElem::Ident("terraform".into()), {
-                let required_providers = provider_schemas.iter().map(|(k, _v)| {
-                    (
-                        FieldPathElem::Ident(provider_name.into()),
-                        mk_record! {("source", Term::Str(k.to_string()))},
-                    )
-                });
-                with_priority(MergePriority::Bottom, mk_record!{
+        build_record(
+            vec![
+                (FieldPathElem::Ident("terraform".into()), {
+                    let required_providers = provider_schemas.iter().map(|(k, _v)| {
+                        (
+                            FieldPathElem::Ident(provider_name.into()),
+                            mk_record! {("source", Term::Str(k.to_string()))},
+                        )
+                    });
+                    with_priority(MergePriority::Bottom, mk_record!{
                     ("required_providers", build_record(required_providers, Default::default()))
                 }).into()
-            }),
-            (FieldPathElem::Ident("provider".into()), mk_record!{
-                (provider_name, contract_metavalue(term_contract(provider_schema.provider.block.as_nickel())))
-            }.into()),
-            (FieldPathElem::Ident("resource".into()), {
-                let resources = provider_schema.resource_schemas.iter().flatten().map(|(k, v)| {
-                    (FieldPathElem::Ident(k.into()), Term::MetaValue(MetaValue {
-                        doc: v.block.description.clone(),
-                        types: Some(dyn_record_contract(v.block.as_nickel())),
-                        opt: true,
-                        ..Default::default()
-                    }).into())
-                });
-                contract_metavalue(term_contract(build_record(resources, Default::default())))
-            }.into()),
-
-            (FieldPathElem::Ident("data".into()), {
-                let resources = provider_schema.data_source_schemas.iter().flatten().map(|(k, v)| {
-                    (FieldPathElem::Ident(k.into()), Term::MetaValue(MetaValue {
-                        doc: v.block.description.clone(),
-                        types: Some(dyn_record_contract(v.block.as_nickel())),
-                        opt: true,
-                        ..Default::default()
-                    }).into())
-                });
-                contract_metavalue(term_contract(build_record(resources, Default::default())))
-            }.into()),
-        ], Default::default()).into()
+                }),
+                (
+                    FieldPathElem::Ident("provider".into()),
+                    mk_record! {
+                        (provider_name, Term::MetaValue(MetaValue {
+                            types: Some(term_contract(provider_schema.provider.block.as_nickel())),
+                            opt: true,
+                            ..Default::default()
+                        }))
+                    }
+                    .into(),
+                ),
+                (
+                    FieldPathElem::Ident("resource".into()),
+                    {
+                        let resources =
+                            provider_schema
+                                .resource_schemas
+                                .iter()
+                                .flatten()
+                                .map(|(k, v)| {
+                                    (
+                                        FieldPathElem::Ident(k.into()),
+                                        Term::MetaValue(MetaValue {
+                                            doc: v.block.description.clone(),
+                                            types: Some(dyn_record_contract(v.block.as_nickel())),
+                                            opt: true,
+                                            ..Default::default()
+                                        })
+                                        .into(),
+                                    )
+                                });
+                        Term::MetaValue(MetaValue {
+                            types: Some(term_contract(build_record(resources, Default::default()))),
+                            opt: true,
+                            ..Default::default()
+                        })
+                    }
+                    .into(),
+                ),
+                (
+                    FieldPathElem::Ident("data".into()),
+                    {
+                        let data_sources = provider_schema
+                            .data_source_schemas
+                            .iter()
+                            .flatten()
+                            .map(|(k, v)| {
+                                (
+                                    FieldPathElem::Ident(k.into()),
+                                    Term::MetaValue(MetaValue {
+                                        doc: v.block.description.clone(),
+                                        types: Some(dyn_record_contract(v.block.as_nickel())),
+                                        opt: true,
+                                        ..Default::default()
+                                    })
+                                    .into(),
+                                )
+                            });
+                        Term::MetaValue(MetaValue {
+                            types: Some(term_contract(build_record(
+                                data_sources,
+                                Default::default(),
+                            ))),
+                            opt: true,
+                            ..Default::default()
+                        })
+                    }
+                    .into(),
+                ),
+            ],
+            Default::default(),
+        )
+        .into()
     }
 }
 
