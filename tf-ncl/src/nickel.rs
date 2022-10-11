@@ -58,7 +58,7 @@ impl AsNickel for (String, TFSchema) {
                     FieldPathElem::Ident("provider".into()),
                     mk_record! {
                         (provider_name, Term::MetaValue(MetaValue {
-                            types: Some(term_contract(provider_schema.provider.block.as_nickel())),
+                            contracts: vec![term_contract(provider_schema.provider.block.as_nickel())],
                             opt: true,
                             ..Default::default()
                         }))
@@ -78,7 +78,7 @@ impl AsNickel for (String, TFSchema) {
                                         FieldPathElem::Ident(k.into()),
                                         Term::MetaValue(MetaValue {
                                             doc: v.block.description.clone(),
-                                            types: Some(dyn_record_contract(v.block.as_nickel())),
+                                            contracts: vec![dyn_record_contract(v.block.as_nickel())],
                                             opt: true,
                                             ..Default::default()
                                         })
@@ -86,7 +86,7 @@ impl AsNickel for (String, TFSchema) {
                                     )
                                 });
                         Term::MetaValue(MetaValue {
-                            types: Some(term_contract(build_record(resources, Default::default()))),
+                            contracts: vec![term_contract(build_record(resources, Default::default()))],
                             opt: true,
                             ..Default::default()
                         })
@@ -105,7 +105,7 @@ impl AsNickel for (String, TFSchema) {
                                     FieldPathElem::Ident(k.into()),
                                     Term::MetaValue(MetaValue {
                                         doc: v.block.description.clone(),
-                                        types: Some(dyn_record_contract(v.block.as_nickel())),
+                                        contracts: vec![dyn_record_contract(v.block.as_nickel())],
                                         opt: true,
                                         ..Default::default()
                                     })
@@ -113,10 +113,10 @@ impl AsNickel for (String, TFSchema) {
                                 )
                             });
                         Term::MetaValue(MetaValue {
-                            types: Some(term_contract(build_record(
+                            contracts: vec![term_contract(build_record(
                                 data_sources,
                                 Default::default(),
-                            ))),
+                            ))],
                             opt: true,
                             ..Default::default()
                         })
@@ -151,7 +151,7 @@ impl AsNickel for TFBlockAttribute {
         Term::MetaValue(MetaValue {
             doc: self.description.clone(),
             opt: !self.required,
-            types: Some(type_contract(self.r#type.as_nickel_type())),
+            contracts: vec![type_contract(self.r#type.as_nickel_type())],
             ..Default::default()
         })
         .into()
@@ -173,7 +173,7 @@ impl AsNickel for TFBlockType {
         }
 
         Term::MetaValue(MetaValue {
-            types: Some(type_contract(wrap(self, self.block.as_nickel()))),
+            contracts: vec![type_contract(wrap(self, self.block.as_nickel()))],
             opt: !is_required(self),
             ..Default::default()
         })
