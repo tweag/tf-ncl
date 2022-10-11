@@ -879,8 +879,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap 4.0.4",
- "nickel-lang 0.2.1 (git+https://github.com/tweag/nickel)",
- "nickel-lang-utilities 0.2.1 (git+https://github.com/tweag/nickel)",
+ "nickel-lang",
+ "nickel-lang-utilities",
  "pretty",
 ]
 
@@ -902,39 +902,7 @@ dependencies = [
 [[package]]
 name = "nickel-lang"
 version = "0.2.1"
-source = "git+https://github.com/tweag/nickel?branch=pretty/add_optional#2c2d0508e44d00610a5317a8e43ab46a3455a666"
-dependencies = [
- "ansi_term",
- "codespan",
- "codespan-reporting",
- "comrak",
- "directories",
- "lalrpop",
- "lalrpop-util",
- "logos",
- "md-5",
- "once_cell",
- "pretty",
- "regex",
- "rustyline",
- "rustyline-derive",
- "serde",
- "serde_json",
- "serde_yaml",
- "sha-1",
- "sha2",
- "simple-counter",
- "structopt",
- "termimad",
- "toml",
- "typed-arena 2.0.1",
- "void",
-]
-
-[[package]]
-name = "nickel-lang"
-version = "0.2.1"
-source = "git+https://github.com/tweag/nickel#fcaa7669047b6d80b01d1eebd21c335b5c3dd0a2"
+source = "git+https://github.com/tweag/nickel#d0cc680ea69a46a4019dfadb7ae87d0168509e5b"
 dependencies = [
  "ansi_term",
  "codespan",
@@ -966,21 +934,11 @@ dependencies = [
 [[package]]
 name = "nickel-lang-utilities"
 version = "0.2.1"
-source = "git+https://github.com/tweag/nickel?branch=pretty/add_optional#2c2d0508e44d00610a5317a8e43ab46a3455a666"
+source = "git+https://github.com/tweag/nickel#d0cc680ea69a46a4019dfadb7ae87d0168509e5b"
 dependencies = [
  "codespan",
  "criterion",
- "nickel-lang 0.2.1 (git+https://github.com/tweag/nickel?branch=pretty/add_optional)",
-]
-
-[[package]]
-name = "nickel-lang-utilities"
-version = "0.2.1"
-source = "git+https://github.com/tweag/nickel#fcaa7669047b6d80b01d1eebd21c335b5c3dd0a2"
-dependencies = [
- "codespan",
- "criterion",
- "nickel-lang 0.2.1 (git+https://github.com/tweag/nickel)",
+ "nickel-lang",
 ]
 
 [[package]]
@@ -1699,8 +1657,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap 4.0.4",
- "nickel-lang 0.2.1 (git+https://github.com/tweag/nickel?branch=pretty/add_optional)",
- "nickel-lang-utilities 0.2.1 (git+https://github.com/tweag/nickel?branch=pretty/add_optional)",
+ "nickel-lang",
  "pretty",
  "serde",
  "serde_json",

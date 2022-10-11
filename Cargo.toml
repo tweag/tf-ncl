@@ -4,3 +4,6 @@ members = [
   "tf-ncl",
   "ncl-dbg"
 ]
+
+[patch.crates-io]
+nickel-lang = { git = "https://github.com/tweag/nickel" }
