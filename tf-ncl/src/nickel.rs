@@ -26,6 +26,7 @@ fn dyn_record_contract(term: impl Into<RichTerm>) -> Contract {
         term.into(),
     ))))))
 }
+
 fn type_contract(t: impl Into<Types>) -> Contract {
     Contract {
         types: t.into(),
@@ -72,7 +73,6 @@ impl AsNickel for (String, TFSchema) {
                             provider_schema
                                 .resource_schemas
                                 .iter()
-                                .flatten()
                                 .map(|(k, v)| {
                                     (
                                         FieldPathElem::Ident(k.into()),
@@ -99,7 +99,6 @@ impl AsNickel for (String, TFSchema) {
                         let data_sources = provider_schema
                             .data_source_schemas
                             .iter()
-                            .flatten()
                             .map(|(k, v)| {
                                 (
                                     FieldPathElem::Ident(k.into()),
@@ -135,12 +134,10 @@ impl AsNickel for TFBlock {
         let attribute_fields = self
             .attributes
             .iter()
-            .flatten()
             .map(|(k, v)| (FieldPathElem::Ident(k.into()), v.as_nickel()));
         let block_fields = self
             .block_types
             .iter()
-            .flatten()
             .map(|(k, v)| (FieldPathElem::Ident(k.into()), v.as_nickel()));
         build_record(attribute_fields.chain(block_fields), Default::default()).into()
     }
