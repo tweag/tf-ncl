@@ -34,10 +34,27 @@ fn type_contract(t: impl Into<Types>) -> Contract {
     }
 }
 
-impl AsNickel for (String, TFSchema) {
+pub struct ProviderNameVersion<T> {
+    name: String,
+    version: Option<String>,
+    data: T,
+}
+
+impl<T: Sized> ProviderNameVersion<T> {
+    pub fn new(name: String, version: Option<String>, data: T) -> Self {
+        ProviderNameVersion {
+            name,
+            version,
+            data,
+        }
+    }
+}
+
+impl AsNickel for ProviderNameVersion<TFSchema> {
     fn as_nickel(&self) -> RichTerm {
-        let provider_name = &self.0;
-        let provider_schemas = &self.1.provider_schemas;
+        let provider_name = &self.name;
+        let provider_version = &self.version;
+        let provider_schemas = &self.data.provider_schemas;
         //TODO(vkleen): figure out how to best map provider URLs to names
         assert!(provider_schemas.len() == 1);
         let provider_schema = provider_schemas.values().next().unwrap();
@@ -48,7 +65,12 @@ impl AsNickel for (String, TFSchema) {
                     let required_providers = provider_schemas.iter().map(|(k, _v)| {
                         (
                             FieldPathElem::Ident(provider_name.into()),
-                            mk_record! {("source", Term::Str(k.to_string()))},
+                            build_record(vec![
+                                    (FieldPathElem::Ident("source".into()), Term::Str(k.to_string()).into())
+                                ].into_iter().chain(provider_version.iter().map(|v|
+                                    (FieldPathElem::Ident("version".into()), Term::Str(v.clone()).into()))),
+                                Default::default())
+                            .into()
                         )
                     });
                     with_priority(MergePriority::Bottom, mk_record!{
@@ -57,14 +79,20 @@ impl AsNickel for (String, TFSchema) {
                 }),
                 (
                     FieldPathElem::Ident("provider".into()),
-                    mk_record! {
-                        (provider_name, Term::MetaValue(MetaValue {
-                            contracts: vec![term_contract(provider_schema.provider.block.as_nickel())],
+                    {
+                        let provider_spec = mk_record! {
+                            (provider_name, Term::MetaValue(MetaValue {
+                                contracts: vec![type_contract(Types(AbsType::Array(Box::new(Types(AbsType::Flat(provider_schema.provider.block.as_nickel()))))))],
+                                opt: true,
+                                ..Default::default()
+                            }))
+                        };
+                        Term::MetaValue(MetaValue {
+                            contracts: vec![term_contract(provider_spec)],
                             opt: true,
                             ..Default::default()
-                        }))
-                    }
-                    .into(),
+                        })
+                    }.into()
                 ),
                 (
                     FieldPathElem::Ident("resource".into()),

@@ -1,9 +1,10 @@
-let Terraform = import "./tf.ncl" in
 {
-  provider.aws = {
-    region = "eu-central-1",
-  },
+  provider.aws = [
+    { region = "eu-central-1", },
+    { region = "us-west-1", alias = "uw1" },
+  ],
   resource."aws_account_alternate_contact"."foo" = {
+    provider = "aws.uw1",
     alternate_contact_type = "OPERATIONS",
     name = "Viktor",
     title = "me",
@@ -25,4 +26,4 @@ let Terraform = import "./tf.ncl" in
       }
     ],
   },
-} | Terraform
+} | import "./aws-schema.ncl"

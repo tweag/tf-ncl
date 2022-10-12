@@ -89,6 +89,17 @@ impl AddMetaArguments for TFSchema {
 
 impl AddMetaArguments for TFProviderSchema {
     fn add_metaarguments(&mut self) {
+        self.provider.block.attributes.insert(
+            "alias".to_string(),
+            TFBlockAttribute {
+                r#type: TFType::String,
+                description: None,
+                required: false,
+                optional: true,
+                computed: false,
+                sensitive: false,
+            },
+        );
         for s in self
             .resource_schemas
             .values_mut()
