@@ -66,7 +66,7 @@
         };
 
       cargoHome = (inputs.import-cargo.builders.importCargo {
-        lockFile = ./tf-ncl/Cargo.lock;
+        lockFile = ./Cargo.lock;
         inherit pkgs;
       }).cargoHome;
 
@@ -91,21 +91,21 @@
         pkgs.stdenv.mkDerivation {
           name = "tf-ncl";
           buildInputs = [ rust ] ++ (if !isDevShell then [ cargoHome ] else [ ]);
-          src = if isDevShell then null else "${self}/tf-ncl";
+          src = if isDevShell then null else self;
 
           buildPhase = ''
-            cargo build --workspace --release --frozen --offline
+            cargo build -p tf-ncl --release --frozen --offline
           '';
           doCheck = true;
           checkPhase = ''
-            cargo test --release --frozen --offline
+            cargo test -p tf-ncl --release --frozen --offline
           '' + (pkgs.lib.optionalString (channel == "stable") ''
-            cargo fmt --all -- --check
+            cargo fmt -p tf-ncl -- --check
           '');
 
           installPhase = ''
             mkdir -p $out
-            cargo install --frozen --offline --path . --root $out
+            cargo install --frozen --offline --path tf-ncl --root $out
           '';
 
           shellHook = pre-commit.shellHook;
