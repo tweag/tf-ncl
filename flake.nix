@@ -26,6 +26,8 @@
         ];
       };
 
+      inherit (pkgs) lib;
+
       mkRust =
         { rustProfile ? "minimal"
         , rustExtensions ? [
@@ -113,14 +115,19 @@
           passthru = { inherit rust pre-commit; };
           RUST_SRC_PATH = "${rust}/lib/rustlib/src/rust/library";
         };
-
-
     in
     rec {
       packages = {
         default = packages.tf-ncl;
         tf-ncl = tf-ncl { };
       };
+      generateJsonSchema = args: pkgs.callPackage (import "${self}/nix/terraform_schema.nix" args) { };
+      jsonSchemas = lib.mapAttrs'
+        (name: p: lib.nameValuePair name (generateJsonSchema { provider = { inherit name; inherit (p) source version; }; inherit (p) outputHash; }))
+        (import "${self}/nix/schemas.nix");
+      schemas = lib.mapAttrs
+        (_: s: pkgs.callPackage "${self}/nix/nickel_schema.nix" { jsonSchema = s; inherit (packages) tf-ncl; })
+        jsonSchemas;
       devShell = pkgs.mkShell {
         inputsFrom = [
           (tf-ncl { isDevShell = true; })
@@ -129,6 +136,7 @@
           terraform
           inputs.nickel.packages.${system}.default
           rust-analyzer
+          nixpkgs-fmt
         ];
       };
     });
