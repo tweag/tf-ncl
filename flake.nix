@@ -128,6 +128,7 @@
         default = packages.tf-ncl;
         tf-ncl = tf-ncl { };
         terraform = pkgs.terraform;
+        nickel = inputs.nickel.packages.${system}.default;
       };
 
       inherit terraformProviders;
@@ -139,6 +140,10 @@
       jsonSchemas = lib.mapAttrs
         (name: p: generateJsonSchema (_: { ${name} = p; }))
         terraformProviders;
+
+      generateSchema = providerFn: pkgs.callPackage
+        (import "${self}/nix/nickel_schema.nix" (providerFn terraformProviders))
+        { };
 
       schemas = lib.mapAttrs
         (_: s: pkgs.callPackage "${self}/nix/nickel_schema.nix" { jsonSchema = s; inherit (packages) tf-ncl; })

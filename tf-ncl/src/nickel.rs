@@ -227,16 +227,23 @@ impl AsNickelType for TFType {
             //TODO(vkleen): Maybe there should be a contract enforcing uniqueness here? Terraform
             //docs seem to indicate that they will implicitely throw away duplicates.
             TFType::Set(inner) => Types(AbsType::Array(Box::new(inner.as_nickel_type()))),
-            TFType::Object(fields) => Types(AbsType::StaticRecord(Box::new(fields.iter().fold(
-                Types(AbsType::RowEmpty()),
-                |acc, (k, t)| {
-                    Types(AbsType::RowExtend(
-                        k.into(),
-                        Some(Box::new(t.as_nickel_type())),
-                        Box::new(acc),
-                    ))
-                },
-            )))),
+            TFType::Object(fields) => Types(AbsType::Flat(
+                build_record(
+                    fields.iter().map(|(k, v)| {
+                        (
+                            FieldPathElem::Ident(k.into()),
+                            Term::MetaValue(MetaValue {
+                                contracts: vec![type_contract(v.as_nickel_type())],
+                                opt: true,
+                                ..Default::default()
+                            })
+                            .into(),
+                        )
+                    }),
+                    Default::default(),
+                )
+                .into(),
+            )),
             TFType::Tuple(_) => unimplemented!(),
         }
     }
