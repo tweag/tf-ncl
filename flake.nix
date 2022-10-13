@@ -116,7 +116,7 @@
           RUST_SRC_PATH = "${rust}/lib/rustlib/src/rust/library";
         };
 
-      terraform-providers = removeAttrs pkgs.terraform-providers [
+      terraformProviders = removeAttrs pkgs.terraform-providers [
         "actualProviders"
         "override"
         "overrideDerivation"
@@ -130,12 +130,15 @@
         terraform = pkgs.terraform;
       };
 
-      terraformProviders = terraform-providers;
-      generateJsonSchema = providers: pkgs.callPackage (import "${self}/nix/terraform_schema.nix" providers) { };
+      inherit terraformProviders;
+
+      generateJsonSchema = providerFn: pkgs.callPackage
+        (import "${self}/nix/terraform_schema.nix" (providerFn terraformProviders))
+        { };
 
       jsonSchemas = lib.mapAttrs
-        (name: p: generateJsonSchema { ${name} = p; })
-        terraform-providers;
+        (name: p: generateJsonSchema (_: { ${name} = p; }))
+        terraformProviders;
 
       schemas = lib.mapAttrs
         (_: s: pkgs.callPackage "${self}/nix/nickel_schema.nix" { jsonSchema = s; inherit (packages) tf-ncl; })
