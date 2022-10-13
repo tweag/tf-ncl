@@ -115,19 +115,32 @@
           passthru = { inherit rust pre-commit; };
           RUST_SRC_PATH = "${rust}/lib/rustlib/src/rust/library";
         };
+
+      terraform-providers = removeAttrs pkgs.terraform-providers [
+        "actualProviders"
+        "override"
+        "overrideDerivation"
+        "recurseForDerivations"
+      ];
     in
     rec {
       packages = {
         default = packages.tf-ncl;
         tf-ncl = tf-ncl { };
+        terraform = pkgs.terraform;
       };
-      generateJsonSchema = args: pkgs.callPackage (import "${self}/nix/terraform_schema.nix" args) { };
-      jsonSchemas = lib.mapAttrs'
-        (name: p: lib.nameValuePair name (generateJsonSchema { provider = { inherit name; inherit (p) source version; }; inherit (p) outputHash; }))
-        (import "${self}/nix/schemas.nix");
+
+      terraformProviders = terraform-providers;
+      generateJsonSchema = providers: pkgs.callPackage (import "${self}/nix/terraform_schema.nix" providers) { };
+
+      jsonSchemas = lib.mapAttrs
+        (name: p: generateJsonSchema { ${name} = p; })
+        terraform-providers;
+
       schemas = lib.mapAttrs
         (_: s: pkgs.callPackage "${self}/nix/nickel_schema.nix" { jsonSchema = s; inherit (packages) tf-ncl; })
         jsonSchemas;
+
       devShell = pkgs.mkShell {
         inputsFrom = [
           (tf-ncl { isDevShell = true; })
