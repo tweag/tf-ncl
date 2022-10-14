@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+
 use crate::terraform::{TFBlock, TFBlockAttribute, TFBlockType, TFSchema, TFType};
 use nickel_lang::mk_record;
 use nickel_lang::parser::utils::{build_record, FieldPathElem};
 use nickel_lang::term::{Contract, MergePriority, MetaValue, RichTerm, Term};
 use nickel_lang::types::{AbsType, Types};
+use serde::Deserialize;
 
 pub trait AsNickel {
     fn as_nickel(&self) -> RichTerm;
@@ -34,43 +37,51 @@ fn type_contract(t: impl Into<Types>) -> Contract {
     }
 }
 
-pub struct ProviderNameVersion<T> {
-    name: String,
-    version: Option<String>,
+#[derive(Deserialize, Debug)]
+pub struct Providers(HashMap<String, ProviderConfig>);
+
+#[derive(Deserialize, Debug)]
+pub struct ProviderConfig {
+    source: String,
+    version: String,
+}
+
+pub struct WithProviders<T> {
+    providers: Providers,
     data: T,
 }
 
-impl<T: Sized> ProviderNameVersion<T> {
-    pub fn new(name: String, version: Option<String>, data: T) -> Self {
-        ProviderNameVersion {
-            name,
-            version,
-            data,
+pub trait IntoWithProviders
+where
+    Self: Sized,
+{
+    fn with_providers(self, providers: Providers) -> WithProviders<Self>;
+}
+
+impl IntoWithProviders for TFSchema {
+    fn with_providers(self, providers: Providers) -> WithProviders<Self> {
+        WithProviders {
+            providers,
+            data: self,
         }
     }
 }
 
-impl AsNickel for ProviderNameVersion<TFSchema> {
+impl AsNickel for WithProviders<TFSchema> {
     fn as_nickel(&self) -> RichTerm {
-        let provider_name = &self.name;
-        let provider_version = &self.version;
+        let providers = &self.providers.0;
         let provider_schemas = &self.data.provider_schemas;
-        //TODO(vkleen): figure out how to best map provider URLs to names
-        assert!(provider_schemas.len() == 1);
-        let provider_schema = provider_schemas.values().next().unwrap();
 
         build_record(
             vec![
                 (FieldPathElem::Ident("terraform".into()), {
-                    let required_providers = provider_schemas.iter().map(|(k, _v)| {
+                    let required_providers = providers.iter().map(|(name, provider)| {
                         (
-                            FieldPathElem::Ident(provider_name.into()),
-                            build_record(vec![
-                                    (FieldPathElem::Ident("source".into()), Term::Str(k.to_string()).into())
-                                ].into_iter().chain(provider_version.iter().map(|v|
-                                    (FieldPathElem::Ident("version".into()), Term::Str(v.clone()).into()))),
-                                Default::default())
-                            .into()
+                            FieldPathElem::Ident(name.into()),
+                            mk_record! {
+                                ("source", Term::Str(provider.source.clone())),
+                                ("version", Term::Str(provider.version.clone()))
+                            },
                         )
                     });
                     with_priority(MergePriority::Bottom, mk_record!{
@@ -80,41 +91,57 @@ impl AsNickel for ProviderNameVersion<TFSchema> {
                 (
                     FieldPathElem::Ident("provider".into()),
                     {
-                        let provider_spec = mk_record! {
-                            (provider_name, Term::MetaValue(MetaValue {
-                                contracts: vec![type_contract(Types(AbsType::Array(Box::new(Types(AbsType::Flat(provider_schema.provider.block.as_nickel()))))))],
-                                opt: true,
-                                ..Default::default()
-                            }))
-                        };
+                        let provider_spec = build_record(
+                            providers.iter().map(|(name, provider)| {
+                                let schema = provider_schemas.get(&provider.source).unwrap();
+                                (
+                                    FieldPathElem::Ident(name.into()),
+                                    Term::MetaValue(MetaValue {
+                                        contracts: vec![type_contract(Types(AbsType::Array(
+                                            Box::new(Types(AbsType::Flat(
+                                                schema.provider.block.as_nickel(),
+                                            ))),
+                                        )))],
+                                        opt: true,
+                                        ..Default::default()
+                                    })
+                                    .into(),
+                                )
+                            }),
+                            Default::default(),
+                        );
                         Term::MetaValue(MetaValue {
                             contracts: vec![term_contract(provider_spec)],
                             opt: true,
                             ..Default::default()
                         })
-                    }.into()
+                    }
+                    .into(),
                 ),
                 (
                     FieldPathElem::Ident("resource".into()),
                     {
-                        let resources =
-                            provider_schema
-                                .resource_schemas
-                                .iter()
-                                .map(|(k, v)| {
-                                    (
-                                        FieldPathElem::Ident(k.into()),
-                                        Term::MetaValue(MetaValue {
-                                            doc: v.block.description.clone(),
-                                            contracts: vec![dyn_record_contract(v.block.as_nickel())],
-                                            opt: true,
-                                            ..Default::default()
-                                        })
-                                        .into(),
-                                    )
-                                });
+                        let resources = provider_schemas
+                            .values()
+                            .map(|v| v.resource_schemas.iter())
+                            .flatten()
+                            .map(|(k, v)| {
+                                (
+                                    FieldPathElem::Ident(k.into()),
+                                    Term::MetaValue(MetaValue {
+                                        doc: v.block.description.clone(),
+                                        contracts: vec![dyn_record_contract(v.block.as_nickel())],
+                                        opt: true,
+                                        ..Default::default()
+                                    })
+                                    .into(),
+                                )
+                            });
                         Term::MetaValue(MetaValue {
-                            contracts: vec![term_contract(build_record(resources, Default::default()))],
+                            contracts: vec![term_contract(build_record(
+                                resources,
+                                Default::default(),
+                            ))],
                             opt: true,
                             ..Default::default()
                         })
@@ -124,9 +151,10 @@ impl AsNickel for ProviderNameVersion<TFSchema> {
                 (
                     FieldPathElem::Ident("data".into()),
                     {
-                        let data_sources = provider_schema
-                            .data_source_schemas
-                            .iter()
+                        let data_sources = provider_schemas
+                            .values()
+                            .map(|v| v.data_source_schemas.iter())
+                            .flatten()
                             .map(|(k, v)| {
                                 (
                                     FieldPathElem::Ident(k.into()),

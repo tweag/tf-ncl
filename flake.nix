@@ -137,17 +137,13 @@
         (import "${self}/nix/terraform_schema.nix" (providerFn terraformProviders))
         { };
 
-      jsonSchemas = lib.mapAttrs
-        (name: p: generateJsonSchema (_: { ${name} = p; }))
-        terraformProviders;
-
       generateSchema = providerFn: pkgs.callPackage
-        (import "${self}/nix/nickel_schema.nix" (providerFn terraformProviders))
-        { };
+        "${self}/nix/nickel_schema.nix"
+        { jsonSchema = generateJsonSchema providerFn; inherit (packages) tf-ncl; };
 
       schemas = lib.mapAttrs
-        (_: s: pkgs.callPackage "${self}/nix/nickel_schema.nix" { jsonSchema = s; inherit (packages) tf-ncl; })
-        jsonSchemas;
+        (name: p: generateSchema (_: { ${name} = p; }))
+        terraformProviders;
 
       devShell = pkgs.mkShell {
         inputsFrom = [
