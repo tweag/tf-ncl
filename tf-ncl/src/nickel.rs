@@ -247,6 +247,7 @@ impl AsNickelType for RichTerm {
 impl AsNickelType for TFType {
     fn as_nickel_type(&self) -> Types {
         match self {
+            TFType::Dynamic => Types(AbsType::Dyn()),
             TFType::String => Types(AbsType::Str()),
             TFType::Number => Types(AbsType::Num()),
             TFType::Bool => Types(AbsType::Bool()),

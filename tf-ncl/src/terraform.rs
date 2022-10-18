@@ -65,6 +65,7 @@ pub enum TFBlockNestingMode {
 
 #[derive(Debug)]
 pub enum TFType {
+    Dynamic,
     String,
     Number,
     Bool,
@@ -206,12 +207,13 @@ impl<'de> Deserialize<'de> for TFType {
                 E: serde::de::Error,
             {
                 match v {
+                    "dynamic" => Ok(TFType::String),
                     "string" => Ok(TFType::String),
                     "number" => Ok(TFType::Number),
                     "bool" => Ok(TFType::Bool),
                     _ => Err(serde::de::Error::unknown_variant(
                         v,
-                        &["string", "number", "bool"],
+                        &["dynamic", "string", "number", "bool"],
                     )),
                 }
             }

@@ -4,7 +4,7 @@ let
   required_providers = lib.mapAttrs
     (_: p: {
       inherit (p) version;
-      source = p.provider-source-address;
+      source = lib.toLower p.provider-source-address;
     })
     providers;
 
