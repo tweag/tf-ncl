@@ -9,6 +9,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "utils";
     };
+    crane = {
+      url = github:ipetkov/crane;
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     pre-commit-hooks = {
       url = github:cachix/pre-commit-hooks.nix;
@@ -29,102 +33,53 @@
 
         inherit (pkgs) lib;
 
-        mkRust =
-          { rustProfile ? "minimal"
-          , rustExtensions ? [
-              "rust-src"
-              "rust-analysis"
-              "rustfmt-preview"
-              "clippy-preview"
-            ]
-          , channel ? "stable"
-          , target ? pkgs.rust.toRustTarget pkgs.stdenv.hostPlatform
-          }:
-          let
-            _rust =
-              if channel == "nightly" then
-                pkgs.rust-bin.selectLatestNightlyWith
-                  (toolchain: toolchain.${rustProfile}.override {
-                    extensions = rustExtensions;
-                    targets = [ target ];
-                  })
-              else
-                pkgs.rust-bin.${channel}.latest.${rustProfile}.override {
-                  extensions = rustExtensions;
-                  targets = [ target ];
-                };
-          in
-          pkgs.buildEnv {
-            name = _rust.name;
-            inherit (_rust) meta;
-            buildInputs = [ pkgs.makeWrapper ];
-            paths = [ _rust ];
-            pathsToLink = [ "/" "/bin" ];
-            # https://github.com/cachix/pre-commit-hooks.nix/issues/126
-            postBuild = ''
-              for i in $out/bin/*; do
-                wrapProgram "$i" --prefix PATH : "$out/bin"
-              done
-            '';
+        rustToolchain = pkgs.rust-bin.stable.latest.minimal.override {
+          extensions = [
+            "rust-src"
+            "rust-analysis"
+            "rustfmt-preview"
+            "clippy-preview"
+          ];
+          targets = [ (pkgs.rust.toRustTarget pkgs.stdenv.hostPlatform) ];
+        };
+
+        craneLib = (inputs.crane.mkLib pkgs).overrideToolchain rustToolchain;
+
+        tf-ncl-src = craneLib.cleanCargoSource ./.;
+
+        craneArgs = (craneLib.crateNameFromCargoToml { cargoToml = ./tf-ncl/Cargo.toml; }) // {
+          src = tf-ncl-src;
+        };
+
+        cargoArtifacts = craneLib.buildDepsOnly craneArgs;
+
+        tf-ncl = craneLib.buildPackage (craneArgs // {
+          inherit cargoArtifacts;
+        });
+
+        pre-commit = inputs.pre-commit-hooks.lib.${system}.run {
+          src = ./.;
+          tools = {
+            inherit (pkgs) cargo rustfmt;
           };
-
-        cargoHome = (inputs.import-cargo.builders.importCargo {
-          lockFile = ./Cargo.lock;
-          inherit pkgs;
-        }).cargoHome;
-
-        tf-ncl = { channel ? "stable", isDevShell ? false, target ? pkgs.rust.toRustTarget pkgs.stdenv.hostPlatform }:
-          let
-            rustProfile = if isDevShell then "default" else "minimal";
-            rust = mkRust { inherit rustProfile channel target; };
-
-            pre-commit = inputs.pre-commit-hooks.lib.${system}.run {
-              src = self;
-              hooks = {
-                nixpkgs-fmt = {
-                  enable = true;
-                };
-                rustfmt = {
-                  enable = true;
-                  entry = pkgs.lib.mkForce "${rust}/bin/cargo-fmt fmt -p tf-ncl -- --check --color always";
-                };
-              };
-            };
-          in
-          pkgs.stdenv.mkDerivation {
-            name = "tf-ncl";
-            buildInputs = [ rust ] ++ (if !isDevShell then [ cargoHome ] else [ ]);
-            src = if isDevShell then null else self;
-
-            buildPhase = ''
-              cargo build -p tf-ncl --release --frozen --offline
-            '';
-            doCheck = true;
-            checkPhase = ''
-              cargo test -p tf-ncl --release --frozen --offline
-            '' + (pkgs.lib.optionalString (channel == "stable") ''
-              cargo fmt -p tf-ncl -- --check
-            '');
-
-            installPhase = ''
-              mkdir -p $out
-              cargo install --frozen --offline --path tf-ncl --root $out
-            '';
-
-            shellHook = pre-commit.shellHook;
-
-            passthru = { inherit rust pre-commit; };
-            RUST_SRC_PATH = "${rust}/lib/rustlib/src/rust/library";
+          hooks = {
+            nixpkgs-fmt.enable = true;
+            rustfmt.enable = true;
           };
+        };
 
         terraformProviders = removeAttrs pkgs.terraform-providers.actualProviders [
           "checkpoint" # build is broken
         ];
       in
       rec {
+        checks = schemas // {
+          inherit tf-ncl pre-commit;
+        };
+
         packages = {
           default = packages.tf-ncl;
-          tf-ncl = tf-ncl { };
+          inherit tf-ncl;
           terraform = pkgs.terraform;
           nickel = inputs.nickel.packages.${system}.default;
         };
@@ -144,17 +99,18 @@
           terraformProviders;
 
         devShells.default = pkgs.mkShell {
-          inputsFrom = [
-            (tf-ncl { isDevShell = true; })
-          ];
+          inputsFrom = builtins.attrValues self.checks;
           buildInputs = with pkgs; [
+            cargo
+            rustc
             terraform
             inputs.nickel.packages.${system}.default
             rust-analyzer
             nixpkgs-fmt
           ];
+          shellHook = ''
+            ${pre-commit.shellHook}
+          '';
         };
-
-        checks = schemas;
       });
 }
