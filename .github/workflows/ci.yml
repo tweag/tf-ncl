@@ -18,6 +18,12 @@ jobs:
         nix_path: nixpkgs=channel:nixos-unstable
         extra_nix_config: |
           experimental-features = nix-command flakes
+
+    - name: Setup Cachix
+      uses: cachix/cachix-action@v11
+      with:
+        name: tf-ncl
+        authToken: '${{ secrets.CACHIX_TF_NCL_AUTH_TOKEN }}'
     
     - name: Run nix flake check
       run: |
