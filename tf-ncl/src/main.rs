@@ -1,6 +1,6 @@
 use clap::Parser;
 use core::fmt;
-use pretty::{BoxAllocator, BoxDoc, Pretty};
+use pretty::{BoxAllocator, BoxDoc, DocBuilder, Pretty};
 use std::{
     io::{self, stdout, Read},
     path::PathBuf,
@@ -69,9 +69,9 @@ let addIdField__ = fun l x =>
     }
 }
 
-impl<'a> From<BoxDoc<'a>> for RenderableSchema<'a> {
-    fn from(d: BoxDoc<'a>) -> Self {
-        RenderableSchema(d)
+impl<'a> From<DocBuilder<'a, BoxAllocator>> for RenderableSchema<'a> {
+    fn from(d: DocBuilder<'a, BoxAllocator>) -> Self {
+        RenderableSchema(d.into_doc())
     }
 }
 
@@ -91,7 +91,6 @@ fn main() -> anyhow::Result<()> {
         .with_providers(providers)
         .as_nickel()
         .pretty(&BoxAllocator)
-        .into_doc()
         .into();
 
     doc.render(&mut stdout())
