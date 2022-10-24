@@ -5,7 +5,7 @@ This repository contains a tool `tf-ncl` for generating [Nickel](https://github.
 # How?
 There is a collection of examples [here](https://github.com/tweag/tf-ncl-examples).
 
-Get a Nickel contract for the terraform providers `libvirt`, `random`a dn `external` the quick and dirty way:
+Get a Nickel contract for the terraform providers `libvirt`, `random` and `external` the quick and dirty way:
 ```
 nix build --impure --expr '(builtins.getFlake (builtins.toString ./.)).generateSchema.${builtins.currentSystem} (p: { inherit(p) libvirt random external; })'
 ```
