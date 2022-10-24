@@ -1,7 +1,8 @@
 use clap::Parser;
+use core::fmt;
 use pretty::{BoxAllocator, BoxDoc, Pretty};
 use std::{
-    io::{stdout, Read},
+    io::{self, stdout, Read},
     path::PathBuf,
 };
 use tf_ncl::{
@@ -36,19 +37,62 @@ fn get_schema(opts: &Args) -> anyhow::Result<TFSchema> {
     Ok(schema)
 }
 
+struct RenderableSchema<'a>(BoxDoc<'a>);
+
+impl<'a> RenderableSchema<'a> {
+    fn render(&self, f: &mut impl io::Write) -> anyhow::Result<()> {
+        write!(f,
+"let remove_if_exists = fun key r =>
+      if record.has_field key r
+      then record.remove key r
+      else r
+    in
+let maybe_record_map = fun f v =>
+      if builtin.is_record v
+      then record.map f v
+      else v
+    in
+let addIdField = fun l x =>
+      x |> record.map (fun res_type r =>
+      r |> record.map (fun name r => r & {{ \"id\" | force = \"${{%{{res_type}}.%{{name}}.id}}\" }}))
+    in
+{{
+    Configuration = 
+{schema},
+    mkConfig | Configuration -> {{;Dyn}}
+             = (maybe_record_map (fun k v =>
+                v |> maybe_record_map (fun res_type v =>
+                  v |> maybe_record_map (fun res_name v =>
+                    v |> remove_if_exists \"id\")))),
+}}", schema = self)?;
+        Ok(())
+    }
+}
+
+impl<'a> From<BoxDoc<'a>> for RenderableSchema<'a> {
+    fn from(d: BoxDoc<'a>) -> Self {
+        RenderableSchema(d)
+    }
+}
+
+impl<'a> fmt::Display for RenderableSchema<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.render_fmt(80, f)
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     let opts = Args::parse();
 
     let providers = get_providers(&opts)?;
     let schema = get_schema(&opts)?;
 
-    let pretty_ncl_schema: BoxDoc = schema
+    let doc: RenderableSchema = schema
         .with_providers(providers)
         .as_nickel()
         .pretty(&BoxAllocator)
-        .into_doc();
-    pretty_ncl_schema.render(80, &mut stdout())?;
-    println!("");
+        .into_doc()
+        .into();
 
-    Ok(())
+    doc.render(&mut stdout())
 }

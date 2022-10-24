@@ -77,9 +77,25 @@
         ];
       in
       rec {
-        checks = schemas // {
-          inherit tf-ncl pre-commit;
-        };
+        checks =
+          schemas //
+          (lib.mapAttrs'
+            (name: drv: lib.nameValuePair "check-${name}" (
+              let
+                conf = pkgs.writeText "main.tf.ncl" ''
+                  let Tf = import "${drv}" in
+                  let cfg = {} | Tf.Configuration in
+                  Tf.mkConfig cfg
+                '';
+              in
+              pkgs.runCommand "check-${name}" { } ''
+                ${packages.nickel}/bin/nickel export -f ${conf}
+              ''
+            ))
+            schemas) //
+          {
+            inherit tf-ncl pre-commit;
+          };
 
         packages = {
           default = packages.tf-ncl;
@@ -110,6 +126,7 @@
             terraform
             inputs.nickel.packages.${system}.default
             rust-analyzer
+            rustfmt
             nixpkgs-fmt
           ];
           shellHook = ''
