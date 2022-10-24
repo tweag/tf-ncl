@@ -89,7 +89,7 @@
                 '';
               in
               pkgs.runCommand "check-${name}" { } ''
-                ${packages.nickel}/bin/nickel export -f ${conf}
+                ${packages.nickel}/bin/nickel export -f ${conf} > $out
               ''
             ))
             schemas) //
