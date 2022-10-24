@@ -52,7 +52,7 @@ let maybe_record_map = fun f v =>
       then record.map f v
       else v
     in
-let addIdField = fun l x =>
+let addIdField__ = fun l x =>
       x |> record.map (fun res_type r =>
       r |> record.map (fun name r => r & {{ \"id\" | force = \"${{%{{res_type}}.%{{name}}.id}}\" }}))
     in

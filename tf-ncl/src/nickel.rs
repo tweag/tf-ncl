@@ -72,6 +72,9 @@ impl AsNickel for WithProviders<TFSchema> {
         let providers = &self.providers.0;
         let provider_schemas = &self.data.provider_schemas;
 
+        //TODO(vkleen): This is an evil hack until we have a better term construction method
+        let add_id_field_contract = term_contract(Term::Var("addIdField__".into()));
+
         build_record(
             vec![
                 (FieldPathElem::Ident("terraform".into()), {
@@ -138,10 +141,10 @@ impl AsNickel for WithProviders<TFSchema> {
                                 )
                             });
                         Term::MetaValue(MetaValue {
-                            contracts: vec![term_contract(build_record(
-                                resources,
-                                Default::default(),
-                            ))],
+                            contracts: vec![
+                                term_contract(build_record(resources, Default::default())),
+                                add_id_field_contract.clone(),
+                            ],
                             opt: true,
                             ..Default::default()
                         })
@@ -168,10 +171,10 @@ impl AsNickel for WithProviders<TFSchema> {
                                 )
                             });
                         Term::MetaValue(MetaValue {
-                            contracts: vec![term_contract(build_record(
-                                data_sources,
-                                Default::default(),
-                            ))],
+                            contracts: vec![
+                                term_contract(build_record(data_sources, Default::default())),
+                                add_id_field_contract.clone(),
+                            ],
                             opt: true,
                             ..Default::default()
                         })
