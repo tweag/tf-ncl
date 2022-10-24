@@ -22,8 +22,8 @@ jobs:
     - name: Setup Cachix
       uses: cachix/cachix-action@v11
       with:
-        name: tf-ncl
-        authToken: '${{ secrets.CACHIX_TF_NCL_AUTH_TOKEN }}'
+        name: tweag-nickel
+        authToken: '${{ secrets.CACHIX_TWEAG_NICKEL_AUTH_TOKEN }}'
     
     - name: Run nix flake check
       run: |

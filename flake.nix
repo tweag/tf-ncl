@@ -21,8 +21,8 @@
     };
   };
   nixConfig = {
-    extra-substituters = [ "https://tweag-nickel.cachix.org" "https://tf-ncl.cachix.org" ];
-    extra-trusted-public-keys = [ "tweag-nickel.cachix.org-1:GIthuiK4LRgnW64ALYEoioVUQBWs0jexyoYVeLDBwRA=" "tf-ncl.cachix.org-1:41qCDp+Wz03t6JY0M8/nR2HKrIGuP+TsZ58/9oGO2Nk=" ];
+    extra-substituters = [ "https://tweag-nickel.cachix.org" ];
+    extra-trusted-public-keys = [ "tweag-nickel.cachix.org-1:GIthuiK4LRgnW64ALYEoioVUQBWs0jexyoYVeLDBwRA=" ];
   };
   outputs = { self, utils, ... }@inputs:
     utils.lib.eachSystem (with utils.lib.system; [ x86_64-linux aarch64-linux ]) (system:
