@@ -181,6 +181,22 @@ impl AsNickel for WithProviders<TFSchema> {
                     }
                     .into(),
                 ),
+                (
+                    FieldPathElem::Ident("output".into()),
+                    {
+                        let output_schema = mk_record!{
+                            ("value", Term::MetaValue(MetaValue { contracts: vec![type_contract(Types(AbsType::Str()))], opt: true, ..Default::default() })),
+                            ("description", Term::MetaValue(MetaValue { contracts: vec![type_contract(Types(AbsType::Str()))], opt: true, ..Default::default() })),
+                            ("sensitive", Term::MetaValue(MetaValue { contracts: vec![type_contract(Types(AbsType::Bool()))], opt: true, ..Default::default() })),
+                            ("depends_on", Term::MetaValue(MetaValue { contracts: vec![type_contract(Types(AbsType::Array(Box::new(Types(AbsType::Bool())))))], opt: true, ..Default::default() }))
+                        };
+                        Term::MetaValue(MetaValue {
+                            contracts: vec![dyn_record_contract(output_schema)],
+                            opt: true,
+                            ..Default::default()
+                        })
+                    }.into(),
+                ),
             ],
             Default::default(),
         )
