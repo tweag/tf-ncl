@@ -43,7 +43,7 @@ impl<'a> RenderableSchema<'a> {
     fn render(&self, f: &mut impl io::Write) -> anyhow::Result<()> {
         write!(f,
 "let remove_if_exists = fun key r =>
-      if record.has_field key r
+      if builtin.is_record r && record.has_field key r
       then record.remove key r
       else r
     in
