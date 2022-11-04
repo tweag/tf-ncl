@@ -163,11 +163,11 @@ impl AsNickel for WithProviders<TFSchema> {
     }
 }
 
-fn to_fields<'a, K, V, A>(r: A) -> impl Iterator<Item = builder::Field<builder::Complete>> + 'a
+fn to_fields<K, V, A>(r: A) -> impl Iterator<Item = builder::Field<builder::Complete>>
 where
-    K: AsRef<str> + 'a,
-    V: AsNickelField + 'a,
-    A: Iterator<Item = (&'a K, &'a V)> + 'a,
+    K: AsRef<str>,
+    V: AsNickelField,
+    A: Iterator<Item = (K, V)>,
 {
     r.map(|(k, v)| v.as_nickel_field(builder::Field::name(k)))
 }
@@ -186,6 +186,15 @@ pub trait AsNickelField {
         &self,
         field: builder::Field<builder::Incomplete>,
     ) -> builder::Field<builder::Complete>;
+}
+
+impl<A: AsNickelField> AsNickelField for &A {
+    fn as_nickel_field(
+        &self,
+        field: builder::Field<builder::Incomplete>,
+    ) -> builder::Field<builder::Complete> {
+        (*self).as_nickel_field(field)
+    }
 }
 
 impl AsNickelField for TFBlockAttribute {
