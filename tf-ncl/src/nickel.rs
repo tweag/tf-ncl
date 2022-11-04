@@ -1,23 +1,13 @@
 use std::collections::HashMap;
 
+use crate::nickel_builder as builder;
 use crate::terraform::{TFBlock, TFBlockAttribute, TFBlockType, TFSchema, TFType};
-use nickel_lang::mk_record;
-use nickel_lang::parser::utils::{build_record, FieldPathElem};
-use nickel_lang::term::{Contract, MergePriority, MetaValue, RichTerm, Term};
+use nickel_lang::term::{Contract, MergePriority, RichTerm, Term};
 use nickel_lang::types::{AbsType, Types};
 use serde::Deserialize;
 
 pub trait AsNickel {
     fn as_nickel(&self) -> RichTerm;
-}
-
-fn with_priority(prio: MergePriority, term: impl Into<RichTerm>) -> RichTerm {
-    Term::MetaValue(MetaValue {
-        priority: prio,
-        value: Some(term.into()),
-        ..Default::default()
-    })
-    .into()
 }
 
 fn term_contract(term: impl Into<RichTerm>) -> Contract {
@@ -75,181 +65,164 @@ impl AsNickel for WithProviders<TFSchema> {
         //TODO(vkleen): This is an evil hack until we have a better term construction method
         let add_id_field_contract = term_contract(Term::Var("addIdField__".into()));
 
-        build_record(
-            vec![
-                (FieldPathElem::Ident("terraform".into()), {
-                    let required_providers = providers.iter().map(|(name, provider)| {
-                        (
-                            FieldPathElem::Ident(name.into()),
-                            mk_record! {
-                                ("source", Term::Str(provider.source.clone())),
-                                ("version", Term::Str(provider.version.clone()))
-                            },
-                        )
-                    });
-                    with_priority(MergePriority::Bottom, mk_record!{
-                    ("required_providers", build_record(required_providers, Default::default()))
-                }).into()
+        let required_providers = providers.iter().map(|(name, provider)| {
+            builder::Field::name(name)
+                .priority(MergePriority::Bottom)
+                .value(builder::Record::from([
+                    builder::Field::name("source")
+                        .priority(MergePriority::Bottom)
+                        .value(Term::Str(provider.source.clone())),
+                    builder::Field::name("version")
+                        .priority(MergePriority::Bottom)
+                        .value(Term::Str(provider.version.clone())),
+                ]))
+        });
+
+        let provider = builder::Record::from(providers.iter().map(|(name, provider)| {
+            let schema = provider_schemas.get(&provider.source).unwrap();
+            builder::Field::name(name)
+                .optional()
+                .contract(type_contract(Types(AbsType::Array(Box::new(Types(
+                    AbsType::Flat(schema.provider.block.as_nickel()),
+                ))))))
+                .no_value()
+        }));
+
+        let resource = builder::Record::from(
+            provider_schemas
+                .values()
+                .map(|v| v.resource_schemas.iter())
+                .flatten()
+                .map(|(k, v)| {
+                    builder::Field::name(k)
+                        .optional()
+                        .some_doc(v.block.description.as_ref())
+                        .contract(dyn_record_contract(v.block.as_nickel()))
+                        .no_value()
                 }),
-                (
-                    FieldPathElem::Ident("provider".into()),
-                    {
-                        let provider_spec = build_record(
-                            providers.iter().map(|(name, provider)| {
-                                let schema = provider_schemas.get(&provider.source).unwrap();
-                                (
-                                    FieldPathElem::Ident(name.into()),
-                                    Term::MetaValue(MetaValue {
-                                        contracts: vec![type_contract(Types(AbsType::Array(
-                                            Box::new(Types(AbsType::Flat(
-                                                schema.provider.block.as_nickel(),
-                                            ))),
-                                        )))],
-                                        opt: true,
-                                        ..Default::default()
-                                    })
-                                    .into(),
-                                )
-                            }),
-                            Default::default(),
-                        );
-                        Term::MetaValue(MetaValue {
-                            contracts: vec![term_contract(provider_spec)],
-                            opt: true,
-                            ..Default::default()
-                        })
-                    }
-                    .into(),
-                ),
-                (
-                    FieldPathElem::Ident("resource".into()),
-                    {
-                        let resources = provider_schemas
-                            .values()
-                            .map(|v| v.resource_schemas.iter())
-                            .flatten()
-                            .map(|(k, v)| {
-                                (
-                                    FieldPathElem::Ident(k.into()),
-                                    Term::MetaValue(MetaValue {
-                                        doc: v.block.description.clone(),
-                                        contracts: vec![dyn_record_contract(v.block.as_nickel())],
-                                        opt: true,
-                                        ..Default::default()
-                                    })
-                                    .into(),
-                                )
-                            });
-                        Term::MetaValue(MetaValue {
-                            contracts: vec![
-                                term_contract(build_record(resources, Default::default())),
-                                add_id_field_contract.clone(),
-                            ],
-                            opt: true,
-                            ..Default::default()
-                        })
-                    }
-                    .into(),
-                ),
-                (
-                    FieldPathElem::Ident("data".into()),
-                    {
-                        let data_sources = provider_schemas
-                            .values()
-                            .map(|v| v.data_source_schemas.iter())
-                            .flatten()
-                            .map(|(k, v)| {
-                                (
-                                    FieldPathElem::Ident(k.into()),
-                                    Term::MetaValue(MetaValue {
-                                        doc: v.block.description.clone(),
-                                        contracts: vec![dyn_record_contract(v.block.as_nickel())],
-                                        opt: true,
-                                        ..Default::default()
-                                    })
-                                    .into(),
-                                )
-                            });
-                        Term::MetaValue(MetaValue {
-                            contracts: vec![
-                                term_contract(build_record(data_sources, Default::default())),
-                                add_id_field_contract.clone(),
-                            ],
-                            opt: true,
-                            ..Default::default()
-                        })
-                    }
-                    .into(),
-                ),
-                (
-                    FieldPathElem::Ident("output".into()),
-                    {
-                        let output_schema = mk_record!{
-                            ("value", Term::MetaValue(MetaValue { contracts: vec![type_contract(Types(AbsType::Str()))], opt: true, ..Default::default() })),
-                            ("description", Term::MetaValue(MetaValue { contracts: vec![type_contract(Types(AbsType::Str()))], opt: true, ..Default::default() })),
-                            ("sensitive", Term::MetaValue(MetaValue { contracts: vec![type_contract(Types(AbsType::Bool()))], opt: true, ..Default::default() })),
-                            ("depends_on", Term::MetaValue(MetaValue { contracts: vec![type_contract(Types(AbsType::Array(Box::new(Types(AbsType::Str())))))], opt: true, ..Default::default() }))
-                        };
-                        Term::MetaValue(MetaValue {
-                            contracts: vec![dyn_record_contract(output_schema)],
-                            opt: true,
-                            ..Default::default()
-                        })
-                    }.into(),
-                ),
-            ],
-            Default::default(),
-        )
-        .into()
+        );
+
+        let data = builder::Record::from(
+            provider_schemas
+                .values()
+                .map(|v| v.data_source_schemas.iter())
+                .flatten()
+                .map(|(k, v)| {
+                    builder::Field::name(k)
+                        .optional()
+                        .some_doc(v.block.description.as_ref())
+                        .contract(dyn_record_contract(v.block.as_nickel()))
+                        .no_value()
+                }),
+        );
+
+        let output = builder::Record::from([
+            builder::Field::name("value")
+                .optional()
+                .contract(type_contract(Types(AbsType::Str())))
+                .no_value(),
+            builder::Field::name("description")
+                .optional()
+                .contract(type_contract(Types(AbsType::Str())))
+                .no_value(),
+            builder::Field::name("sensitive")
+                .optional()
+                .contract(type_contract(Types(AbsType::Bool())))
+                .no_value(),
+            builder::Field::name("depends_on")
+                .optional()
+                .contract(type_contract(Types(AbsType::Array(Box::new(Types(
+                    AbsType::Str(),
+                ))))))
+                .no_value(),
+        ]);
+
+        builder::Record::from([
+            builder::Field::path(["terraform", "required_providers"])
+                .priority(MergePriority::Bottom)
+                .value(builder::Record::from(required_providers)),
+            builder::Field::name("provider")
+                .optional()
+                .contract(term_contract(provider))
+                .no_value(),
+            builder::Field::name("resource")
+                .optional()
+                .contract(term_contract(resource))
+                .contract(add_id_field_contract.clone())
+                .no_value(),
+            builder::Field::name("data")
+                .optional()
+                .contract(term_contract(data))
+                .contract(add_id_field_contract.clone())
+                .no_value(),
+            builder::Field::name("output")
+                .contract(dyn_record_contract(output))
+                .no_value(),
+        ])
+        .build()
     }
+}
+
+fn to_fields<'a, K, V, A>(r: A) -> impl Iterator<Item = builder::Field<builder::Complete>> + 'a
+where
+    K: AsRef<str> + 'a,
+    V: AsNickelField + 'a,
+    A: Iterator<Item = (&'a K, &'a V)> + 'a,
+{
+    r.map(|(k, v)| v.as_nickel_field(builder::Field::name(k)))
 }
 
 impl AsNickel for TFBlock {
     fn as_nickel(&self) -> RichTerm {
-        let attribute_fields = self
-            .attributes
-            .iter()
-            .map(|(k, v)| (FieldPathElem::Ident(k.into()), v.as_nickel()));
-        let block_fields = self
-            .block_types
-            .iter()
-            .map(|(k, v)| (FieldPathElem::Ident(k.into()), v.as_nickel()));
-        build_record(attribute_fields.chain(block_fields), Default::default()).into()
+        builder::Record::from(
+            to_fields(self.attributes.iter()).chain(to_fields(self.block_types.iter())),
+        )
+        .build()
     }
 }
 
-impl AsNickel for TFBlockAttribute {
-    fn as_nickel(&self) -> RichTerm {
-        Term::MetaValue(MetaValue {
-            doc: self.description.clone(),
-            opt: !self.required,
-            contracts: vec![type_contract(self.r#type.as_nickel_type())],
-            ..Default::default()
-        })
-        .into()
+pub trait AsNickelField {
+    fn as_nickel_field(
+        &self,
+        field: builder::Field<builder::Incomplete>,
+    ) -> builder::Field<builder::Complete>;
+}
+
+impl AsNickelField for TFBlockAttribute {
+    fn as_nickel_field(
+        &self,
+        field: builder::Field<builder::Incomplete>,
+    ) -> builder::Field<builder::Complete> {
+        field
+            .some_doc(self.description.as_ref())
+            .set_optional(!self.required)
+            .contract(type_contract(self.r#type.as_nickel_type()))
+            .no_value()
     }
 }
 
-impl AsNickel for TFBlockType {
-    fn as_nickel(&self) -> RichTerm {
+impl AsNickelField for TFBlockType {
+    fn as_nickel_field(
+        &self,
+        field: builder::Field<builder::Incomplete>,
+    ) -> builder::Field<builder::Complete> {
         fn wrap(t: &TFBlockType, nt: RichTerm) -> Types {
             use crate::terraform::TFBlockNestingMode::*;
             match t.nesting_mode {
-                Single => nt.as_nickel_type(),
-                List | Set => Types(AbsType::Array(Box::new(nt.as_nickel_type()))),
-                Map => Types(AbsType::DynRecord(Box::new(nt.as_nickel_type()))),
+                Single => nt.into_nickel_type(),
+                List | Set => Types(AbsType::Array(Box::new(nt.into_nickel_type()))),
+                Map => Types(AbsType::DynRecord(Box::new(nt.into_nickel_type()))),
             }
         }
+
         fn is_required(t: &TFBlockType) -> bool {
             t.min_items.iter().any(|&x| x >= 1)
         }
 
-        Term::MetaValue(MetaValue {
-            contracts: vec![type_contract(wrap(self, self.block.as_nickel()))],
-            opt: !is_required(self),
-            ..Default::default()
-        })
-        .into()
+        field
+            .set_optional(!is_required(self))
+            .contract(type_contract(wrap(self, self.block.as_nickel())))
+            .no_value()
     }
 }
 
@@ -257,9 +230,19 @@ pub trait AsNickelType {
     fn as_nickel_type(&self) -> Types;
 }
 
+pub trait IntoNickelType {
+    fn into_nickel_type(self) -> Types;
+}
+
 impl AsNickelType for RichTerm {
     fn as_nickel_type(&self) -> Types {
-        Types(AbsType::Flat(self.clone()))
+        self.clone().into_nickel_type()
+    }
+}
+
+impl IntoNickelType for RichTerm {
+    fn into_nickel_type(self) -> Types {
+        Types(AbsType::Flat(self))
     }
 }
 
@@ -272,24 +255,18 @@ impl AsNickelType for TFType {
             TFType::Bool => Types(AbsType::Bool()),
             TFType::List(inner) => Types(AbsType::Array(Box::new(inner.as_nickel_type()))),
             TFType::Map(inner) => Types(AbsType::DynRecord(Box::new(inner.as_nickel_type()))),
-            //TODO(vkleen): Maybe there should be a contract enforcing uniqueness here? Terraform
-            //docs seem to indicate that they will implicitely throw away duplicates.
+            // TODO(vkleen): Maybe there should be a contract enforcing uniqueness here? Terraform
+            // docs seem to indicate that they will implicitely throw away duplicates.
             TFType::Set(inner) => Types(AbsType::Array(Box::new(inner.as_nickel_type()))),
             TFType::Object(fields) => Types(AbsType::Flat(
-                build_record(
-                    fields.iter().map(|(k, v)| {
-                        (
-                            FieldPathElem::Ident(k.into()),
-                            Term::MetaValue(MetaValue {
-                                contracts: vec![type_contract(v.as_nickel_type())],
-                                opt: true,
-                                ..Default::default()
-                            })
-                            .into(),
-                        )
-                    }),
-                    Default::default(),
-                )
+                builder::Record::from(fields.iter().map(|(k, v)| {
+                    // TODO(vkleen): optional() might not be correct, but terraform
+                    // providers seem to be inconsistent about which fields are required
+                    builder::Field::name(k)
+                        .optional()
+                        .contract(type_contract(v.as_nickel_type()))
+                        .no_value()
+                }))
                 .into(),
             )),
             TFType::Tuple(_) => unimplemented!(),
