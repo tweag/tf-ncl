@@ -163,21 +163,20 @@ impl AsNickel for WithProviders<TFSchema> {
     }
 }
 
-fn to_fields<K, V, A>(r: A) -> impl Iterator<Item = builder::Field<builder::Complete>>
+fn as_fields<K, V, A>(r: A) -> impl Iterator<Item = builder::Field<builder::Complete>>
 where
     K: AsRef<str>,
     V: AsNickelField,
-    A: Iterator<Item = (K, V)>,
+    A: IntoIterator<Item = (K, V)>,
 {
-    r.map(|(k, v)| v.as_nickel_field(builder::Field::name(k)))
+    r.into_iter()
+        .map(|(k, v)| v.as_nickel_field(builder::Field::name(k)))
 }
 
 impl AsNickel for TFBlock {
     fn as_nickel(&self) -> RichTerm {
-        builder::Record::from(
-            to_fields(self.attributes.iter()).chain(to_fields(self.block_types.iter())),
-        )
-        .build()
+        builder::Record::from(as_fields(&self.attributes).chain(as_fields(&self.block_types)))
+            .build()
     }
 }
 
