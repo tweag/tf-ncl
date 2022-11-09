@@ -1,14 +1,7 @@
-use std::collections::HashMap;
-
+use crate::intermediate::{self, Schema};
 use crate::nickel_builder as builder;
-use crate::terraform::{TFBlock, TFBlockAttribute, TFBlockType, TFSchema, TFType};
 use nickel_lang::term::{Contract, MergePriority, RichTerm, Term};
 use nickel_lang::types::{AbsType, Types};
-use serde::Deserialize;
-
-pub trait AsNickel {
-    fn as_nickel(&self) -> RichTerm;
-}
 
 fn term_contract(term: impl Into<RichTerm>) -> Contract {
     type_contract(Types(AbsType::Flat(term.into())))
@@ -27,45 +20,15 @@ fn type_contract(t: impl Into<Types>) -> Contract {
     }
 }
 
-#[derive(Deserialize, Debug)]
-pub struct Providers(HashMap<String, ProviderConfig>);
-
-#[derive(Deserialize, Debug)]
-pub struct ProviderConfig {
-    source: String,
-    version: String,
+pub trait AsNickel {
+    fn as_nickel(&self) -> RichTerm;
 }
 
-pub struct WithProviders<T> {
-    providers: Providers,
-    data: T,
-}
-
-pub trait IntoWithProviders
-where
-    Self: Sized,
-{
-    fn with_providers(self, providers: Providers) -> WithProviders<Self>;
-}
-
-impl IntoWithProviders for TFSchema {
-    fn with_providers(self, providers: Providers) -> WithProviders<Self> {
-        WithProviders {
-            providers,
-            data: self,
-        }
-    }
-}
-
-impl AsNickel for WithProviders<TFSchema> {
+impl AsNickel for Schema {
     fn as_nickel(&self) -> RichTerm {
-        let providers = &self.providers.0;
-        let provider_schemas = &self.data.provider_schemas;
-
-        //TODO(vkleen): This is an evil hack until we have a better term construction method
+        // TODO(vkleen): This is an evil hack until we have a better term construction method
         let add_id_field_contract = term_contract(Term::Var("addIdField__".into()));
-
-        let required_providers = providers.iter().map(|(name, provider)| {
+        let required_providers = self.providers.iter().map(|(name, provider)| {
             builder::Field::name(name)
                 .priority(MergePriority::Bottom)
                 .value(builder::Record::from([
@@ -78,43 +41,17 @@ impl AsNickel for WithProviders<TFSchema> {
                 ]))
         });
 
-        let provider = builder::Record::from(providers.iter().map(|(name, provider)| {
-            let schema = provider_schemas.get(&provider.source).unwrap();
+        let provider = builder::Record::from(self.providers.iter().map(|(name, provider)| {
             builder::Field::name(name)
                 .optional()
                 .contract(type_contract(Types(AbsType::Array(Box::new(Types(
-                    AbsType::Flat(schema.provider.block.as_nickel()),
+                    AbsType::Flat(as_nickel_record(&provider.configuration)),
                 ))))))
                 .no_value()
         }));
 
-        let resource = builder::Record::from(
-            provider_schemas
-                .values()
-                .map(|v| v.resource_schemas.iter())
-                .flatten()
-                .map(|(k, v)| {
-                    builder::Field::name(k)
-                        .optional()
-                        .some_doc(v.block.description.as_ref())
-                        .contract(dyn_record_contract(v.block.as_nickel()))
-                        .no_value()
-                }),
-        );
-
-        let data = builder::Record::from(
-            provider_schemas
-                .values()
-                .map(|v| v.data_source_schemas.iter())
-                .flatten()
-                .map(|(k, v)| {
-                    builder::Field::name(k)
-                        .optional()
-                        .some_doc(v.block.description.as_ref())
-                        .contract(dyn_record_contract(v.block.as_nickel()))
-                        .no_value()
-                }),
-        );
+        let resource = as_nickel_record(self.providers.values().flat_map(|p| p.resources.iter()));
+        let data = as_nickel_record(self.providers.values().flat_map(|p| p.data_sources.iter()));
 
         let output = builder::Record::from([
             builder::Field::name("value")
@@ -153,7 +90,7 @@ impl AsNickel for WithProviders<TFSchema> {
             builder::Field::name("data")
                 .optional()
                 .contract(term_contract(data))
-                .contract(add_id_field_contract.clone())
+                .contract(add_id_field_contract)
                 .no_value(),
             builder::Field::name("output")
                 .optional()
@@ -164,23 +101,6 @@ impl AsNickel for WithProviders<TFSchema> {
     }
 }
 
-fn as_fields<K, V, A>(r: A) -> impl Iterator<Item = builder::Field<builder::Complete>>
-where
-    K: AsRef<str>,
-    V: AsNickelField,
-    A: IntoIterator<Item = (K, V)>,
-{
-    r.into_iter()
-        .map(|(k, v)| v.as_nickel_field(builder::Field::name(k)))
-}
-
-impl AsNickel for TFBlock {
-    fn as_nickel(&self) -> RichTerm {
-        builder::Record::from(as_fields(&self.attributes).chain(as_fields(&self.block_types)))
-            .build()
-    }
-}
-
 pub trait AsNickelField {
     fn as_nickel_field(
         &self,
@@ -188,49 +108,33 @@ pub trait AsNickelField {
     ) -> builder::Field<builder::Complete>;
 }
 
-impl<A: AsNickelField> AsNickelField for &A {
+impl AsNickelField for &intermediate::Attribute {
     fn as_nickel_field(
         &self,
         field: builder::Field<builder::Incomplete>,
     ) -> builder::Field<builder::Complete> {
-        (*self).as_nickel_field(field)
-    }
-}
-
-impl AsNickelField for TFBlockAttribute {
-    fn as_nickel_field(
-        &self,
-        field: builder::Field<builder::Incomplete>,
-    ) -> builder::Field<builder::Complete> {
+        let intermediate::Attribute {
+            description,
+            optional,
+            ///TODO(vkleen) Handle interpolation properly
+                interpolation: _,
+            type_,
+        } = self;
         field
-            .some_doc(self.description.as_ref())
-            .set_optional(!self.required)
-            .contract(type_contract(self.r#type.as_nickel_type()))
+            .some_doc(description.clone())
+            .set_optional(*optional)
+            .contract(type_contract(type_.as_nickel_type()))
             .no_value()
     }
 }
 
-impl AsNickelField for TFBlockType {
+impl AsNickelField for &intermediate::Type {
     fn as_nickel_field(
         &self,
         field: builder::Field<builder::Incomplete>,
     ) -> builder::Field<builder::Complete> {
-        fn wrap(t: &TFBlockType, nt: RichTerm) -> Types {
-            use crate::terraform::TFBlockNestingMode::*;
-            match t.nesting_mode {
-                Single => nt.into_nickel_type(),
-                List | Set => Types(AbsType::Array(Box::new(nt.into_nickel_type()))),
-                Map => Types(AbsType::DynRecord(Box::new(nt.into_nickel_type()))),
-            }
-        }
-
-        fn is_required(t: &TFBlockType) -> bool {
-            t.min_items.iter().any(|&x| x >= 1)
-        }
-
         field
-            .set_optional(!is_required(self))
-            .contract(type_contract(wrap(self, self.block.as_nickel())))
+            .contract(type_contract(self.as_nickel_type()))
             .no_value()
     }
 }
@@ -239,46 +143,44 @@ pub trait AsNickelType {
     fn as_nickel_type(&self) -> Types;
 }
 
-pub trait IntoNickelType {
-    fn into_nickel_type(self) -> Types;
-}
-
-impl AsNickelType for RichTerm {
+impl AsNickelType for &intermediate::Type {
     fn as_nickel_type(&self) -> Types {
-        self.clone().into_nickel_type()
-    }
-}
-
-impl IntoNickelType for RichTerm {
-    fn into_nickel_type(self) -> Types {
-        Types(AbsType::Flat(self))
-    }
-}
-
-impl AsNickelType for TFType {
-    fn as_nickel_type(&self) -> Types {
+        use intermediate::Type::*;
         match self {
-            TFType::Dynamic => Types(AbsType::Dyn()),
-            TFType::String => Types(AbsType::Str()),
-            TFType::Number => Types(AbsType::Num()),
-            TFType::Bool => Types(AbsType::Bool()),
-            TFType::List(inner) => Types(AbsType::Array(Box::new(inner.as_nickel_type()))),
-            TFType::Map(inner) => Types(AbsType::DynRecord(Box::new(inner.as_nickel_type()))),
-            // TODO(vkleen): Maybe there should be a contract enforcing uniqueness here? Terraform
-            // docs seem to indicate that they will implicitely throw away duplicates.
-            TFType::Set(inner) => Types(AbsType::Array(Box::new(inner.as_nickel_type()))),
-            TFType::Object(fields) => Types(AbsType::Flat(
-                builder::Record::from(fields.iter().map(|(k, v)| {
-                    // TODO(vkleen): optional() might not be correct, but terraform
-                    // providers seem to be inconsistent about which fields are required
-                    builder::Field::name(k)
-                        .optional()
-                        .contract(type_contract(v.as_nickel_type()))
-                        .no_value()
-                }))
+            Dynamic => Types(AbsType::Dyn()),
+            String => Types(AbsType::Str()),
+            Number => Types(AbsType::Num()),
+            Bool => Types(AbsType::Bool()),
+            //TODO(vkleen): min and max should be represented as a contract
+            List {
+                min: _,
+                max: _,
+                content,
+            } => Types(AbsType::Array(Box::new(content.as_ref().as_nickel_type()))),
+            Object(fields) => Types(AbsType::Flat(
+                builder::Record::from(
+                    fields
+                        .iter()
+                        .map(|(k, v)| v.as_nickel_field(builder::Field::name(k))),
+                )
                 .into(),
             )),
-            TFType::Tuple(_) => unimplemented!(),
+            Dictionary(inner) => Types(AbsType::DynRecord(Box::new(
+                inner.as_ref().as_nickel_type(),
+            ))),
         }
     }
+}
+
+fn as_nickel_record<K, V, It>(r: It) -> RichTerm
+where
+    K: AsRef<str>,
+    V: AsNickelField,
+    It: IntoIterator<Item = (K, V)>,
+{
+    builder::Record::from(
+        r.into_iter()
+            .map(|(k, v)| v.as_nickel_field(builder::Field::name(k))),
+    )
+    .build()
 }
