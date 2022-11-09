@@ -101,43 +101,26 @@ impl AddMetaArguments for TFProviderSchema {
                 sensitive: false,
             },
         );
-        for s in self
-            .resource_schemas
-            .values_mut()
-            .chain(self.data_source_schemas.values_mut())
-        {
-            s.add_metaarguments();
+        for s in self.resource_schemas.values_mut() {
+            add_resource_metaarguments(&mut s.block)
+        }
+        for s in self.data_source_schemas.values_mut() {
+            add_data_source_metaarguments(&mut s.block)
         }
     }
 }
 
-impl AddMetaArguments for TFBlockSchema {
-    fn add_metaarguments(&mut self) {
-        self.block.add_metaarguments()
-    }
+fn add_resource_metaarguments(res: &mut TFBlock) {
+    add_common_metaarguments(res);
+    add_lifecycle_metaarguments(res);
 }
 
-impl AddMetaArguments for TFBlock {
-    fn add_metaarguments(&mut self) {
-        self.attributes.extend(vec![
-            ("depends_on".to_string(), TFBlockAttribute {
-                r#type: TFType::List(Box::new(TFType::String)),
-                description: Some("Use the depends_on meta-argument to handle hidden resource or module dependencies that Terraform cannot automatically infer. You only need to explicitly specify a dependency when a resource or module relies on another resource's behavior but does not access any of that resource's data in its arguments.".to_string()),
-                required: false,
-                optional: true,
-                computed: false,
-                sensitive: false,
-            }),
-            ("provider".to_string(), TFBlockAttribute{
-                r#type: TFType::String,
-                description: Some("The provider meta-argument specifies which provider configuration to use for a resource, overriding Terraform's default behavior of selecting one based on the resource type name. Its value should be an unquoted <PROVIDER>.<ALIAS> reference.".to_string()),
-                required: false,
-                optional: true,
-                computed: false,
-                sensitive: false,
-            }),
-        ]);
-        self.block_types.extend(vec![
+fn add_data_source_metaarguments(res: &mut TFBlock) {
+    add_common_metaarguments(res);
+}
+
+fn add_lifecycle_metaarguments(res: &mut TFBlock) {
+    res.block_types.extend(vec![
             ("lifecycle".to_string(), TFBlockType {
                 nesting_mode: TFBlockNestingMode::Single,
                 min_items: None,
@@ -187,7 +170,27 @@ The ignore_changes feature is intended to be used when a resource is created wit
                 },
             }),
         ]);
-    }
+}
+
+fn add_common_metaarguments(res: &mut TFBlock) {
+    res.attributes.extend(vec![
+            ("depends_on".to_string(), TFBlockAttribute {
+                r#type: TFType::List(Box::new(TFType::String)),
+                description: Some("Use the depends_on meta-argument to handle hidden resource or module dependencies that Terraform cannot automatically infer. You only need to explicitly specify a dependency when a resource or module relies on another resource's behavior but does not access any of that resource's data in its arguments.".to_string()),
+                required: false,
+                optional: true,
+                computed: false,
+                sensitive: false,
+            }),
+            ("provider".to_string(), TFBlockAttribute{
+                r#type: TFType::String,
+                description: Some("The provider meta-argument specifies which provider configuration to use for a resource, overriding Terraform's default behavior of selecting one based on the resource type name. Its value should be an unquoted <PROVIDER>.<ALIAS> reference.".to_string()),
+                required: false,
+                optional: true,
+                computed: false,
+                sensitive: false,
+            }),
+        ]);
 }
 
 impl<'de> Deserialize<'de> for TFType {
