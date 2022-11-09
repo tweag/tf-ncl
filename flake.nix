@@ -42,7 +42,7 @@
             "rust-src"
             "rust-analysis"
             "rustfmt-preview"
-            "clippy-preview"
+            "clippy"
           ];
           targets = [ (pkgs.rust.toRustTarget pkgs.stdenv.hostPlatform) ];
         };
@@ -92,7 +92,7 @@
                 '';
               in
               pkgs.runCommand "check-${name}" { } ''
-                ${packages.nickel}/bin/nickel export -f ${conf} > $out
+                ${inputs.nickel.packages.${system}.default}/bin/nickel export -f ${conf} > $out
               ''
             ))
             schemas) //
@@ -104,7 +104,6 @@
           default = packages.tf-ncl;
           inherit tf-ncl;
           terraform = pkgs.terraform;
-          nickel = inputs.nickel.packages.${system}.default;
         };
 
         inherit terraformProviders;
@@ -130,6 +129,7 @@
             inputs.nickel.packages.${system}.default
             rust-analyzer
             rustfmt
+            clippy
             nixpkgs-fmt
           ];
           shellHook = ''

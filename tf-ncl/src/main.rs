@@ -1,13 +1,16 @@
+use anyhow::anyhow;
 use clap::Parser;
 use core::fmt;
 use pretty::{BoxAllocator, BoxDoc, DocBuilder, Pretty};
 use std::{
+    convert::TryFrom,
     io::{self, stdout, Read},
     path::PathBuf,
 };
 use tf_ncl::{
-    nickel::{AsNickel, IntoWithProviders, Providers},
-    terraform::{AddMetaArguments, TFSchema},
+    intermediate::{self, IntoWithProviders, Providers},
+    nickel::AsNickel,
+    terraform::TFSchema,
 };
 
 #[derive(Parser, Debug)]
@@ -32,9 +35,7 @@ fn get_schema(opts: &Args) -> anyhow::Result<TFSchema> {
         Box::new(std::io::stdin())
     };
 
-    let mut schema: TFSchema = serde_json::from_reader(schema_reader)?;
-    schema.add_metaarguments();
-    Ok(schema)
+    Ok(serde_json::from_reader(schema_reader)?)
 }
 
 struct RenderableSchema<'a>(BoxDoc<'a>);
@@ -92,11 +93,10 @@ fn main() -> anyhow::Result<()> {
     let providers = get_providers(&opts)?;
     let schema = get_schema(&opts)?;
 
-    let doc: RenderableSchema = schema
-        .with_providers(providers)
-        .as_nickel()
-        .pretty(&BoxAllocator)
-        .into();
+    let intermediate = intermediate::Schema::try_from(schema.with_providers(providers))
+        .map_err(|_| anyhow!("Could not construct intermediate representation"))?;
+
+    let doc: RenderableSchema = intermediate.as_nickel().pretty(&BoxAllocator).into();
 
     doc.render(&mut stdout())
 }

@@ -57,9 +57,9 @@ impl<A> Field<A> {
 
     pub fn contract(mut self, contract: impl Into<Contract>) -> Self {
         self.metadata = self.metadata.or_else(|| Some(Default::default()));
-        self.metadata
-            .as_mut()
-            .map(|mv| mv.contracts.push(contract.into()));
+        if let Some(mv) = self.metadata.as_mut() {
+            mv.contracts.push(contract.into())
+        }
         self
     }
 
@@ -213,6 +213,7 @@ impl Record {
         self
     }
 
+    #[allow(clippy::needless_update)]
     pub fn open(mut self) -> Self {
         self.attrs = RecordAttrs {
             open: true,
@@ -234,6 +235,12 @@ impl Record {
     }
 }
 
+impl Default for Record {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<I, It> From<It> for Record
 where
     I: Into<Field<Complete>>,
@@ -244,9 +251,9 @@ where
     }
 }
 
-impl Into<RichTerm> for Record {
-    fn into(self) -> RichTerm {
-        self.build()
+impl From<Record> for RichTerm {
+    fn from(val: Record) -> Self {
+        val.build()
     }
 }
 
