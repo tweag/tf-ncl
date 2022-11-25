@@ -1,4 +1,7 @@
-use serde::{de::Visitor, Deserialize, Deserializer};
+use serde::{
+    de::{Error, Unexpected, Visitor},
+    Deserialize, Deserializer,
+};
 use std::collections::HashMap;
 
 #[derive(Deserialize, Debug)]
@@ -32,18 +35,32 @@ pub struct TFBlock {
 }
 
 // The Default::default() for bool is false
+// Terraform schemas only ever set the `required`, `optional`, `computed` and `sensitive` fields to
+// `true` or don't set them at all.
 #[derive(Deserialize, Debug)]
 pub struct TFBlockAttribute {
     pub r#type: TFType,
     pub description: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "terraform_bool")]
     pub required: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "terraform_bool")]
     pub optional: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "terraform_bool")]
     pub computed: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "terraform_bool")]
     pub sensitive: bool,
+}
+
+fn terraform_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let b = bool::deserialize(deserializer)?;
+    if !b {
+        Err(D::Error::invalid_value(Unexpected::Bool(b), &"true"))
+    } else {
+        Ok(b)
+    }
 }
 
 #[derive(Deserialize, Debug)]
