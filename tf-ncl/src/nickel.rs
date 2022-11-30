@@ -156,6 +156,7 @@ impl AsNickel for WithProviders<TFSchema> {
                 .contract(add_id_field_contract.clone())
                 .no_value(),
             builder::Field::name("output")
+                .optional()
                 .contract(dyn_record_contract(output))
                 .no_value(),
         ])
