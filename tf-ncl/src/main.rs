@@ -60,6 +60,7 @@ let addIdField__ = fun l x =>
     Config = {{
         config | Schema,
         renderable_config = mkConfig config,
+        ..
     }},
     Schema = 
 {schema},
