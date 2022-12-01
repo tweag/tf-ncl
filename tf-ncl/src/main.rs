@@ -57,9 +57,13 @@ let addIdField__ = fun l x =>
       r |> record.map (fun name r => r & {{ \"id\" | force = \"${{%{{res_type}}.%{{name}}.id}}\" }}))
     in
 {{
-    Configuration = 
+    Config = {{
+        config | Schema,
+        renderable_config = mkConfig config,
+    }},
+    Schema = 
 {schema},
-    mkConfig | Configuration -> {{;Dyn}}
+    mkConfig | Schema -> {{_: Dyn}}
              = (maybe_record_map (fun k v =>
                 v |> maybe_record_map (fun res_type v =>
                   v |> maybe_record_map (fun res_name v =>
