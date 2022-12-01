@@ -84,12 +84,11 @@
               let
                 conf = pkgs.writeText "main.tf.ncl" ''
                   let Tf = import "${drv}" in
-                  let cfg = {
-                    output = {
+                  ({
+                    config.output = {
                       "ip".value = "1.2.3.4",
                     }
-                  } | Tf.Configuration in
-                  Tf.mkConfig cfg
+                  } | Tf.Config).renderable_config
                 '';
               in
               pkgs.runCommand "check-${name}" { } ''
