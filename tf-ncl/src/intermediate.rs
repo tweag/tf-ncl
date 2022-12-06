@@ -288,10 +288,14 @@ impl TryFrom<TFBlockAttribute> for Attribute {
                 (true, false, false) => Ok((true, InterpolationStrategy::Nickel)),
                 (false, true, false) => Ok((false, InterpolationStrategy::Nickel)),
                 (false, false, true) => {
-                    Ok((false, InterpolationStrategy::Terraform { force: true }))
+                    //TODO(vkleen) Once interpolation of computed fields is properly handled,
+                    //these fields should no longer be optional
+                    Ok((true, InterpolationStrategy::Terraform { force: true }))
                 }
                 (true, false, true) => {
-                    Ok((false, InterpolationStrategy::Terraform { force: false }))
+                    //TODO(vkleen) Once interpolation of computed fields is properly handled,
+                    //these fields should no longer be optional
+                    Ok((true, InterpolationStrategy::Terraform { force: false }))
                 }
                 _ => Err(()),
             }
