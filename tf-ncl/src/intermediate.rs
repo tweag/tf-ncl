@@ -22,7 +22,7 @@ pub struct Provider {
     pub resources: HashMap<String, Attribute>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Attribute {
     pub description: Option<String>,
     pub optional: bool,
@@ -30,13 +30,13 @@ pub struct Attribute {
     pub type_: Type,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum InterpolationStrategy {
     Nickel,
     Terraform { force: bool },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Type {
     Dynamic,
     String,
@@ -118,6 +118,7 @@ fn make_resources(
     Ok(values_try_into(schemas)
         .collect::<Result<HashMap<String, Attribute>, ()>>()?
         .into_iter()
+        .add_null_resource()
         .map(|(k, v)| {
             (
                 k,
@@ -143,6 +144,11 @@ trait MetaArguments {
     fn add_lifecycle(self) -> Self;
     fn add_common(self) -> Self;
     fn add_provisioner(self) -> Self;
+}
+
+trait NullResource {
+    type ResultIterator: Iterator<Item = (String, Attribute)>;
+    fn add_null_resource(self) -> Self::ResultIterator;
 }
 
 impl MetaArguments for Attribute {
@@ -237,16 +243,328 @@ The ignore_changes feature is intended to be used when a resource is created wit
     }
 
     fn add_provisioner(mut self) -> Self {
-        self.extend([(
-            "provisioner".to_string(),
+        let connection_block = (
+            "connection".to_owned(),
             Attribute {
                 optional: true,
                 interpolation: InterpolationStrategy::Nickel,
                 description: None,
-                type_: Type::Dictionary(Box::new(Type::Dynamic)),
+                type_: Type::Object([
+                    ("type".to_owned(), Attribute {
+                        description: Some(r#"The connection type. Valid values are "ssh" and "winrm". Provisioners typically assume that the remote system runs Microsoft Windows when using WinRM. Behaviors based on the SSH target_platform will force Windows-specific behavior for WinRM, unless otherwise specified."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("user".to_owned(), Attribute {
+                        description: Some(r#"The user to use for the connection."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("password".to_owned(), Attribute {
+                        description: Some(r#"The password to use for the connection."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("host".to_owned(), Attribute {
+                        description: Some(r#"The address of the resource to connect to."#.into()),
+                        optional: false,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("port".to_owned(), Attribute {
+                        description: Some(r#"The port to connect to."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::Number,
+                    }),
+                    ("timeout".to_owned(), Attribute {
+                        description: Some(r#"The timeout to wait for the connection to become available. Should be provided as a string (e.g., "30s" or "5m".)"#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("script_path".to_owned(), Attribute {
+                        description: Some(r#"The path used to copy scripts meant for remote execution."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("private_key".to_owned(), Attribute {
+                        description: Some(r#"The contents of an SSH key to use for the connection. These can be loaded from a file on disk using the file function. This takes preference over password if provided."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("certificate".to_owned(), Attribute {
+                        description: Some(r#"The contents of a signed CA Certificate. The certificate argument must be used in conjunction with a private_key. These can be loaded from a file on disk using the the file function."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("agent".to_owned(), Attribute {
+                        description: Some(r#"Set to false to disable using ssh-agent to authenticate. On Windows the only supported SSH authentication agent is Pageant."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::Bool,
+                    }),
+                    ("agent_identity".to_owned(), Attribute {
+                        description: Some(r#"The preferred identity from the ssh agent for authentication."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("host_key".to_owned(), Attribute {
+                        description: Some(r#"The public key from the remote host or the signing CA, used to verify the connection."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("target_platform".to_owned(), Attribute {
+                        description: Some(r#"The target platform to connect to. Valid values are "windows" and "unix". If the platform is set to windows, the default script_path is c:\windows\temp\terraform_%RAND%.cmd, assuming the SSH default shell is cmd.exe. If the SSH default shell is PowerShell, set script_path to "c:/windows/temp/terraform_%RAND%.ps1""#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("https".to_owned(), Attribute {
+                        description: Some(r#"Set to true to connect using HTTPS instead of HTTP."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::Bool,
+                    }),
+                    ("insecure".to_owned(), Attribute {
+                        description: Some(r#"Set to true to skip validating the HTTPS certificate chain."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::Bool,
+                    }),
+                    ("use_ntlm".to_owned(), Attribute {
+                        description: Some(r#"Set to true to use NTLM authentication rather than default (basic authentication), removing the requirement for basic authentication to be enabled within the target guest. Refer to [Authentication for Remote Connections](https://docs.microsoft.com/en-us/windows/win32/winrm/authentication-for-remote-connections) in the Windows App Development documentation for more details."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::Bool,
+                    }),
+                    ("cacert".to_owned(), Attribute {
+                        description: Some(r#"The CA certificate to validate against."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+
+
+                    ("bastion_host".to_owned(), Attribute {
+                        description: Some(r#"Setting this enables the bastion Host connection. The provisioner will connect to bastion_host first, and then connect from there to host."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("bastion_host_key".to_owned(), Attribute {
+                        description: Some(r#"The public key from the remote host or the signing CA, used to verify the host connection."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("bastion_port".to_owned(), Attribute {
+                        description: Some(r#"The port to use connect to the bastion host."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::Number,
+                    }),
+                    ("bastion_user".to_owned(), Attribute {
+                        description: Some(r#"The user for the connection to the bastion host."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("bastion_password".to_owned(), Attribute {
+                        description: Some(r#"The password to use for the bastion host."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("bastion_private_key".to_owned(), Attribute {
+                        description: Some(r#"The contents of an SSH key file to use for the bastion host. These can be loaded from a file on disk using the file function."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("bastion_certificate".to_owned(), Attribute {
+                        description: Some(r#"The contents of a signed CA Certificate. The certificate argument must be used in conjunction with a bastion_private_key. These can be loaded from a file on disk using the the file function."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+
+
+                    ("proxy_scheme".to_owned(), Attribute {
+                        description: Some(r#"http or https"#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("proxy_host".to_owned(), Attribute {
+                        description: Some(r#"Setting this enables the SSH over HTTP connection. This host will be connected to first, and then the host or bastion_host connection will be made from there."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("proxy_port".to_owned(), Attribute {
+                        description: Some(r#"The port to use connect to the proxy host."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::Number,
+                    }),
+                    ("proxy_user_name".to_owned(), Attribute {
+                        description: Some(r#"The username to use connect to the private proxy host. This argument should be specified only if authentication is required for the HTTP Proxy server."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                    ("proxy_user_password".to_owned(), Attribute {
+                        description: Some(r#"The password to use connect to the private proxy host. This argument should be specified only if authentication is required for the HTTP Proxy server."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::String,
+                    }),
+                ].into()),
             },
-        )]);
+        );
+
+        let remote_exec_type = Type::Object([
+            connection_block.clone(),
+            ("inline".to_owned(), Attribute {
+                description: Some(r#"This is a list of command strings. The provisioner uses a default shell unless you specify a shell as the first command (eg., #!/bin/bash). You cannot provide this with script or scripts."#.into()),
+                optional: true,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::List { min: None, max: None, content: Box::new(Type::String) },
+            }),
+            ("script".to_owned(), Attribute {
+                description: Some(r#"This is a path (relative or absolute) to a local script that will be copied to the remote resource and then executed. This cannot be provided with inline or scripts."#.into()),
+                optional: true,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::String,
+            }),
+            ("scripts".to_owned(), Attribute {
+                description: Some(r#"This is a list of paths (relative or absolute) to local scripts that will be copied to the remote resource and then executed. They are executed in the order they are provided. This cannot be provided with inline or script."#.into()),
+                optional: true,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::List { min: None, max: None, content: Box::new(Type::String) },
+            }),
+        ].into());
+
+        let local_exec_type = Type::Object([
+            ("command".to_owned(), Attribute {
+                description: Some(r#"This is the command to execute. It can be provided as a relative path to the current working directory or as an absolute path. It is evaluated in a shell, and can use environment variables or Terraform variables."#.into()),
+                optional: false,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::String,
+            }),
+            ("working_dir".to_owned(), Attribute {
+                description: Some(r#"If provided, specifies the working directory where command will be executed. It can be provided as a relative path to the current working directory or as an absolute path. The directory must exist."#.into()),
+                optional: true,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::String,
+            }),
+            ("interpreter".to_owned(), Attribute {
+                description: Some(r#"If provided, this is a list of interpreter arguments used to execute the command. The first argument is the interpreter itself. It can be provided as a relative path to the current working directory or as an absolute path. The remaining arguments are appended prior to the command. This allows building command lines of the form "/bin/bash", "-c", "echo foo". If interpreter is unspecified, sensible defaults will be chosen based on the system OS."#.into()),
+                optional: true,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::List { min: None, max: None, content: Box::new(Type::String) },
+            }),
+            ("environment".to_owned(), Attribute {
+                description: Some(r#"block of key value pairs representing the environment of the executed command. inherits the current process environment."#.into()),
+                optional: false,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::Dictionary(Box::new(Type::String)),
+            }),
+            ("when".to_owned(), Attribute {
+                description: Some(r#"If provided, specifies when Terraform will execute the command. For example, when = destroy specifies that the provisioner will run when the associated resource is destroyed. Refer to Destroy-Time Provisioners for details."#.into()),
+                optional: false,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::String,
+            }),
+        ].into());
+
+        let file_type = Type::Object([
+            ("source".to_owned(), Attribute {
+                description: Some(r#"The source file or directory. Specify it either relative to the current working directory or as an absolute path. This argument cannot be combined with content."#.into()),
+                optional: true,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::String,
+            }),
+            ("content".to_owned(), Attribute {
+                description: Some(r#"The direct content to copy on the destination. If destination is a file, the content will be written on that file. In case of a directory, a file named tf-file-content is created inside that directory. We recommend using a file as the destination when using content. This argument cannot be combined with source."#.into()),
+                optional: true,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::String,
+            }),
+            ("destination".to_owned(), Attribute {
+                description: Some(r#"The destination path to write to on the remote system. See Destination Paths below for more information."#.into()),
+                optional: false,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::String,
+            }),
+        ].into());
+
+        self.extend([
+           connection_block,
+            ("provisioner".to_string(), Attribute {
+                optional: true,
+                interpolation: InterpolationStrategy::Nickel,
+                description: None,
+                type_: Type::Object([
+                    ("file".to_owned(), Attribute {
+                        description: Some("The file provisioner copies files or directories from the machine running Terraform to the newly created resource. The file provisioner supports both ssh and winrm type connections.".into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: file_type,
+                    }),
+                    ("local-exec".to_owned(), Attribute {
+                        description: Some(r#"The local-exec provisioner invokes a local executable after a resource is created. This invokes a process on the machine running Terraform, not on the resource. See the remote-exec provisioner to run commands on the resource.
+
+Note that even though the resource will be fully created when the provisioner is run, there is no guarantee that it will be in an operable state - for example system services such as sshd may not be started yet on compute resources."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: local_exec_type,
+                    }),
+                    ("remote-exec".to_owned(), Attribute {
+                        description: Some("The remote-exec provisioner invokes a script on a remote resource after it is created. This can be used to run a configuration management tool, bootstrap into a cluster, etc. To invoke a local process, see the local-exec provisioner instead. The remote-exec provisioner requires a connection and supports both ssh and winrm.".into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: remote_exec_type,
+                    }),
+                ].into())
+            }),
+        ]);
         self
+    }
+}
+
+impl<I> NullResource for I
+where
+    I: Iterator<Item = (String, Attribute)>,
+{
+    type ResultIterator = std::iter::Chain<I, <[(String, Attribute); 1] as IntoIterator>::IntoIter>;
+    fn add_null_resource(self) -> Self::ResultIterator {
+        self.chain([
+            ("null_resource".to_owned(), Attribute {
+                description: Some(r#"If you need to run provisioners that aren't directly associated with a specific resource, you can associate them with a null_resource.
+
+Instances of null_resource are treated like normal resources, but they don't do anything. Like with any other resource, you can configure provisioners and connection details on a null_resource. You can also use its triggers argument and any meta-arguments to control exactly where in the dependency graph its provisioners will run."#.into()),
+                optional: true,
+                interpolation: InterpolationStrategy::Nickel,
+                type_: Type::Object([
+                    ("triggers".to_owned(), Attribute {
+                        description: Some(r#"A map of values which should cause this set of provisioners to re-run. Values are meant to be interpolated references to variables or attributes of other resources."#.into()),
+                        optional: true,
+                        interpolation: InterpolationStrategy::Nickel,
+                        type_: Type::Dictionary(Box::new(Type::String)),
+                    })
+                ].into()),
+            })
+        ])
     }
 }
 
