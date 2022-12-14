@@ -5,4 +5,4 @@ members = [
 ]
 
 [patch.crates-io]
-nickel-lang = { git = "https://github.com/tweag/nickel", rev = "d0cc680ea69a46a4019dfadb7ae87d0168509e5b" }
+nickel-lang = { git = "https://github.com/tweag/nickel" }
