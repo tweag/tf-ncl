@@ -1,14 +1,14 @@
 use crate::intermediate::{self, Schema};
 use crate::nickel_builder as builder;
 use nickel_lang::term::{Contract, MergePriority, RichTerm, Term};
-use nickel_lang::types::{AbsType, Types};
+use nickel_lang::types::{TypeF, Types};
 
 fn term_contract(term: impl Into<RichTerm>) -> Contract {
-    type_contract(Types(AbsType::Flat(term.into())))
+    type_contract(Types(TypeF::Flat(term.into())))
 }
 
-fn dyn_record_contract(term: impl Into<RichTerm>) -> Contract {
-    type_contract(Types(AbsType::DynRecord(Box::new(Types(AbsType::Flat(
+fn dict_contract(term: impl Into<RichTerm>) -> Contract {
+    type_contract(Types(TypeF::Dict(Box::new(Types(TypeF::Flat(
         term.into(),
     ))))))
 }
@@ -44,8 +44,8 @@ impl AsNickel for Schema {
         let provider = builder::Record::from(self.providers.iter().map(|(name, provider)| {
             builder::Field::name(name)
                 .optional()
-                .contract(type_contract(Types(AbsType::Array(Box::new(Types(
-                    AbsType::Flat(as_nickel_record(&provider.configuration)),
+                .contract(type_contract(Types(TypeF::Array(Box::new(Types(
+                    TypeF::Flat(as_nickel_record(&provider.configuration)),
                 ))))))
                 .no_value()
         }));
@@ -56,20 +56,20 @@ impl AsNickel for Schema {
         let output = builder::Record::from([
             builder::Field::name("value")
                 .optional()
-                .contract(type_contract(Types(AbsType::Str())))
+                .contract(type_contract(Types(TypeF::Str)))
                 .no_value(),
             builder::Field::name("description")
                 .optional()
-                .contract(type_contract(Types(AbsType::Str())))
+                .contract(type_contract(Types(TypeF::Str)))
                 .no_value(),
             builder::Field::name("sensitive")
                 .optional()
-                .contract(type_contract(Types(AbsType::Bool())))
+                .contract(type_contract(Types(TypeF::Bool)))
                 .no_value(),
             builder::Field::name("depends_on")
                 .optional()
-                .contract(type_contract(Types(AbsType::Array(Box::new(Types(
-                    AbsType::Str(),
+                .contract(type_contract(Types(TypeF::Array(Box::new(Types(
+                    TypeF::Str,
                 ))))))
                 .no_value(),
         ]);
@@ -94,7 +94,7 @@ impl AsNickel for Schema {
                 .no_value(),
             builder::Field::name("output")
                 .optional()
-                .contract(dyn_record_contract(output))
+                .contract(dict_contract(output))
                 .no_value(),
         ])
         .build()
@@ -147,17 +147,17 @@ impl AsNickelType for &intermediate::Type {
     fn as_nickel_type(&self) -> Types {
         use intermediate::Type::*;
         match self {
-            Dynamic => Types(AbsType::Dyn()),
-            String => Types(AbsType::Str()),
-            Number => Types(AbsType::Num()),
-            Bool => Types(AbsType::Bool()),
+            Dynamic => Types(TypeF::Dyn),
+            String => Types(TypeF::Str),
+            Number => Types(TypeF::Num),
+            Bool => Types(TypeF::Bool),
             //TODO(vkleen): min and max should be represented as a contract
             List {
                 min: _,
                 max: _,
                 content,
-            } => Types(AbsType::Array(Box::new(content.as_ref().as_nickel_type()))),
-            Object(fields) => Types(AbsType::Flat(
+            } => Types(TypeF::Array(Box::new(content.as_ref().as_nickel_type()))),
+            Object(fields) => Types(TypeF::Flat(
                 builder::Record::from(
                     fields
                         .iter()
@@ -165,9 +165,7 @@ impl AsNickelType for &intermediate::Type {
                 )
                 .into(),
             )),
-            Dictionary(inner) => Types(AbsType::DynRecord(Box::new(
-                inner.as_ref().as_nickel_type(),
-            ))),
+            Dictionary(inner) => Types(TypeF::Dict(Box::new(inner.as_ref().as_nickel_type()))),
         }
     }
 }
