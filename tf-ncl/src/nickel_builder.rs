@@ -5,7 +5,7 @@ use nickel_lang::{
         uniterm::UniRecord,
         utils::{FieldPath, FieldPathElem},
     },
-    term::{Contract, MergePriority, MetaValue, RecordAttrs, RichTerm, Term},
+    term::{record::RecordAttrs, Contract, MergePriority, MetaValue, RichTerm, Term},
 };
 
 pub struct Incomplete();
@@ -262,7 +262,7 @@ mod tests {
     use nickel_lang::{
         parser::utils::{build_record, elaborate_field_path, FieldPathElem},
         term::RichTerm,
-        types::{AbsType, Types},
+        types::{TypeF, Types},
     };
 
     use pretty_assertions::assert_eq;
@@ -495,7 +495,7 @@ mod tests {
         let t: RichTerm = Record::new()
             .field("foo")
             .contract(Contract {
-                types: Types(AbsType::Str()),
+                types: Types(TypeF::Str),
                 label: Default::default(),
             })
             .no_value()
@@ -507,7 +507,7 @@ mod tests {
                     FieldPathElem::Ident("foo".into()),
                     Term::MetaValue(MetaValue {
                         contracts: vec![Contract {
-                            types: Types(AbsType::Str()),
+                            types: Types(TypeF::Str),
                             label: Default::default()
                         }],
                         ..Default::default()
@@ -527,11 +527,11 @@ mod tests {
             .priority(MergePriority::Bottom)
             .doc("foo?")
             .contract(Contract {
-                types: Types(AbsType::Str()),
+                types: Types(TypeF::Str),
                 label: Default::default(),
             })
             .types(Contract {
-                types: Types(AbsType::Num()),
+                types: Types(TypeF::Num),
                 label: Default::default(),
             })
             .optional()
@@ -545,11 +545,11 @@ mod tests {
                     Term::MetaValue(MetaValue {
                         doc: Some("foo?".into()),
                         types: Some(Contract {
-                            types: Types(AbsType::Num()),
+                            types: Types(TypeF::Num),
                             label: Default::default(),
                         }),
                         contracts: vec![Contract {
-                            types: Types(AbsType::Str()),
+                            types: Types(TypeF::Str),
                             label: Default::default()
                         }],
                         opt: true,
