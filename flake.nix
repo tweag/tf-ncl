@@ -27,6 +27,9 @@
   outputs = { self, utils, ... }@inputs:
     utils.lib.eachSystem (with utils.lib.system; [ x86_64-linux aarch64-linux ]) (system:
       let
+        lastModifiedDate = self.lastModifiedDate or self.lastModified or "19700101";
+        version = builtins.substring 0 8 lastModifiedDate;
+
         pkgs = import inputs.nixpkgs {
           localSystem = { inherit system; };
           config = { };
@@ -60,6 +63,15 @@
         tf-ncl = craneLib.buildPackage (craneArgs // {
           inherit cargoArtifacts;
         });
+
+        schema-fetch = pkgs.buildGoModule {
+          pname = "schema-fetch";
+          inherit version;
+
+          src = ./schema-fetch;
+
+          vendorSha256 = null;
+        };
 
         pre-commit = inputs.pre-commit-hooks.lib.${system}.run {
           src = ./.;
@@ -102,7 +114,7 @@
 
         packages = {
           default = packages.tf-ncl;
-          inherit tf-ncl;
+          inherit tf-ncl schema-fetch;
           terraform = pkgs.terraform;
         };
 
@@ -131,6 +143,11 @@
             rustfmt
             clippy
             nixpkgs-fmt
+
+            go
+            gopls
+            gotools
+            go-tools
           ];
           shellHook = ''
             ${pre-commit.shellHook}
