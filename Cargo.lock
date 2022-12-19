@@ -846,8 +846,8 @@ dependencies = [
 
 [[package]]
 name = "nickel-lang"
-version = "0.3.0"
-source = "git+https://github.com/tweag/nickel#b10b27fe616fcabdf9c9c90b22e9f821009ae40e"
+version = "0.3.1"
+source = "git+https://github.com/tweag/nickel#c95ab86f3e7fb9f9929b7ee625beb1844e583ff1"
 dependencies = [
  "ansi_term",
  "codespan",
@@ -874,6 +874,7 @@ dependencies = [
  "termimad",
  "toml",
  "typed-arena 2.0.1",
+ "unicode-segmentation",
  "void",
 ]
 
