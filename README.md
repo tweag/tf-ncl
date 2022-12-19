@@ -2,7 +2,7 @@
 
 This repository contains a tool `tf-ncl` for generating [Nickel](https://github.com/tweag/nickel) contracts out of [terraform](https://www.terraform.io) provider schemas.
 
-# How?
+## How?
 There is a collection of examples [here](https://github.com/tweag/tf-ncl-examples).
 
 Get a Nickel contract for the terraform providers `libvirt`, `random` and `external` the quick and dirty way:
@@ -40,59 +40,17 @@ Finally, generate the Nickel contracts with
 tf-ncl providers.json schema.json
 ```
 
-## How to use the result?
-Excerpted from [tf-ncl-examples](https://github.com/tweag/tf-ncl-examples):
-```
-let Tf = import "./schema.ncl" in
-let cfg = {
-  provider.libvirt = [
-    { uri = "qemu:///session" },
-  ],
+## Status
 
-  resource."libvirt_network"."example" = {
-    name = "example",
-    mode = "nat",
-    domain = "example.test",
-    addresses = [ "10.17.3.0/24" ],
-    dhcp = [{
-      enabled = false,
-    }],
-    dns = [{
-      enabled = true,
-      local_only = false,
-    }],
-  },
+This project is in active development and breaking changes should be expected.
 
-  resource."libvirt_volume"."centos7-qcow2" = {
-    name = "centos7.qcow2",
-    pool = "default",
-    source = "https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2",
-    format = "qcow2",
-  },
+- [x] Automatic contracts for Terraform provider schemas
+- [ ] More documentation [#13][i13]
+- [ ] Natural handling of field references [#12][i12]
+- [ ] Contracts for Terraform state backends [#14][i14], [#15][i15]
 
-  resource."libvirt_domain"."centos7" = {
-    name = "centos7",
-    memory = 2048,
-    vcpu = 2,
-    network_interface = [{
-      network_id = resource.libvirt_network.example.id,
-      wait_for_lease = true,
-      addresses = [ "10.17.3.2" ],
-    }],
-    disk = [{
-      volume_id = resource.libvirt_volume.centos7-qcow2.id,
-      scsi = true,
-      file = "",
-      block_device = "",
-      url = "",
-      wwn = "",
-    }],
-    console = [{
-      type = "pty",
-      target_type = "serial",
-      target_port = "0",
-    }],
-  },
-} | Tf.Configuration in
-Tf.mkConfig cfg
-```
+[i12]: https://github.com/tweag/tf-ncl/issues/12
+[i13]: https://github.com/tweag/tf-ncl/issues/13
+[i14]: https://github.com/tweag/tf-ncl/issues/14
+[i15]: https://github.com/tweag/tf-ncl/issues/15
+
