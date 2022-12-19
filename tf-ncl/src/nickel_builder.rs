@@ -1,12 +1,13 @@
-use std::convert::TryInto;
-
 use nickel_lang::{
-    parser::{
-        uniterm::UniRecord,
-        utils::{FieldPath, FieldPathElem},
+    identifier::Ident,
+    parser::utils::{build_record, FieldPathElem},
+    term::{
+        record::{RecordAttrs, RecordData},
+        Contract, MergePriority, MetaValue, RichTerm, Term,
     },
-    term::{record::RecordAttrs, Contract, MergePriority, MetaValue, RichTerm, Term},
 };
+
+type StaticPath = Vec<Ident>;
 
 pub struct Incomplete();
 
@@ -15,7 +16,7 @@ pub struct Complete(Option<RichTerm>);
 #[derive(Debug)]
 pub struct Field<RB> {
     record: RB,
-    path: FieldPath,
+    path: StaticPath,
     metadata: Option<MetaValue>,
 }
 
@@ -88,10 +89,7 @@ impl Field<Incomplete> {
     {
         Field {
             record: Incomplete(),
-            path: path
-                .into_iter()
-                .map(|e| FieldPathElem::Ident(e.as_ref().into()))
-                .collect(),
+            path: path.into_iter().map(|e| e.as_ref().into()).collect(),
             metadata: Default::default(),
         }
     }
@@ -162,7 +160,7 @@ impl Field<Record> {
 
 #[derive(Debug)]
 pub struct Record {
-    fields: Vec<(FieldPath, RichTerm)>,
+    fields: Vec<(StaticPath, RichTerm)>,
     attrs: RecordAttrs,
 }
 
@@ -177,7 +175,7 @@ impl Record {
     pub fn field(self, name: impl AsRef<str>) -> Field<Record> {
         Field {
             record: self,
-            path: vec![FieldPathElem::Ident(name.as_ref().into())],
+            path: vec![name.as_ref().into()],
             metadata: None,
         }
     }
@@ -200,10 +198,7 @@ impl Record {
     {
         Field {
             record: self,
-            path: path
-                .into_iter()
-                .map(|e| FieldPathElem::Ident(e.as_ref().into()))
-                .collect(),
+            path: path.into_iter().map(|e| e.as_ref().into()).collect(),
             metadata: None,
         }
     }
@@ -223,15 +218,23 @@ impl Record {
     }
 
     pub fn build(self) -> RichTerm {
-        UniRecord {
-            fields: self.fields,
-            tail: None,
-            attrs: self.attrs,
-            pos: Default::default(),
-            pos_ellipsis: Default::default(),
+        fn elaborate_field_path(path: StaticPath, content: RichTerm) -> (FieldPathElem, RichTerm) {
+            let mut it = path.into_iter();
+            let fst = it.next().unwrap();
+
+            let content = it.rev().fold(content, |acc, id| {
+                Term::Record(RecordData::with_fields([(id, acc)].into())).into()
+            });
+
+            (FieldPathElem::Ident(fst), content)
         }
-        .try_into()
-        .unwrap()
+
+        let elaborated = self
+            .fields
+            .into_iter()
+            .map(|(path, rt)| elaborate_field_path(path, rt))
+            .collect::<Vec<_>>();
+        build_record(elaborated, self.attrs).into()
     }
 }
 
