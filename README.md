@@ -1,6 +1,6 @@
 # Terraform Configurations With Nickel
 
-This repository contains a tool `tf-ncl` for generating [Nickel](https://github.com/tweag/nickel) contracts out of [terraform](https://www.terraform.io) provider schemas.
+This repository contains a tool `tf-ncl` for generating [Nickel](https://github.com/tweag/nickel) contracts out of [Terraform](https://www.terraform.io) provider schemas.
 
 ## How?
 There is a collection of examples [here](https://github.com/tweag/tf-ncl-examples).

@@ -9,10 +9,15 @@ use nickel_lang::{
 
 type StaticPath = Vec<Ident>;
 
+/// A marker type for tracking a [Field] that is not yet completely specified.
 pub struct Incomplete();
 
+/// A markertype for tracking a [Field] that is finalized with or without a value.
 pub struct Complete(Option<RichTerm>);
 
+/// This a builder for a single record field. The generic paramter `RB` is used to track whether
+/// the field has been completely constructed and whether it has been associated with a record
+/// builder yet.
 #[derive(Debug)]
 pub struct Field<RB> {
     record: RB,
@@ -21,6 +26,7 @@ pub struct Field<RB> {
 }
 
 impl<A> Field<A> {
+    /// Set `doc` metadata for this Nickel record field. See also [Field::some_doc].
     pub fn doc(mut self, doc: impl AsRef<str>) -> Self {
         self.metadata = Some(MetaValue {
             doc: Some(doc.as_ref().into()),
@@ -29,6 +35,7 @@ impl<A> Field<A> {
         self
     }
 
+    /// [Option]ally set `doc` metadata for this Nickel record field. See also [Field::doc].
     pub fn some_doc(mut self, some_doc: Option<impl AsRef<str>>) -> Self {
         if let Some(d) = some_doc {
             self = self.doc(d);
@@ -36,6 +43,8 @@ impl<A> Field<A> {
         self
     }
 
+    /// Set Nickel metadata to mark this field as optional if the surrounding record is interpreted
+    /// as a contract. See also [Field::set_optional].
     pub fn optional(mut self) -> Self {
         self.metadata = Some(MetaValue {
             opt: true,
@@ -44,6 +53,8 @@ impl<A> Field<A> {
         self
     }
 
+    /// Determine if this field should be regarded as optional if the surrounding record is
+    /// interpreted as a contract. See also [Field::optional]
     pub fn set_optional(mut self, opt: bool) -> Self {
         if self.metadata.is_none() && !opt {
             return self;
@@ -56,6 +67,7 @@ impl<A> Field<A> {
         self
     }
 
+    /// Attach a Nickel `contract` of type [Contract] to this field.
     pub fn contract(mut self, contract: impl Into<Contract>) -> Self {
         self.metadata = self.metadata.or_else(|| Some(Default::default()));
         if let Some(mv) = self.metadata.as_mut() {
@@ -64,6 +76,7 @@ impl<A> Field<A> {
         self
     }
 
+    /// Attach a static Nickel type `t` to this field.
     pub fn types(mut self, t: impl Into<Contract>) -> Self {
         self.metadata = Some(MetaValue {
             types: Some(t.into()),
@@ -72,6 +85,7 @@ impl<A> Field<A> {
         self
     }
 
+    /// Set the merge priority of this field to `priority`.
     pub fn priority(mut self, priority: MergePriority) -> Self {
         self.metadata = Some(MetaValue {
             priority,
@@ -82,6 +96,8 @@ impl<A> Field<A> {
 }
 
 impl Field<Incomplete> {
+    /// Construct an incomplete field which is not yet associated with a specific record builder
+    /// with path `path`.
     pub fn path<I, It>(path: It) -> Self
     where
         I: AsRef<str>,
@@ -94,10 +110,14 @@ impl Field<Incomplete> {
         }
     }
 
+    /// Construct an incomplete field which is not yet associated with a specific record builder
+    /// with name `name`.
     pub fn name(name: impl AsRef<str>) -> Self {
         Self::path([name])
     }
 
+    /// Finalize this field without assigning a value. This is useful for building up record
+    /// contracts.
     pub fn no_value(self) -> Field<Complete> {
         Field {
             record: Complete(None),
@@ -106,6 +126,7 @@ impl Field<Incomplete> {
         }
     }
 
+    /// Finalize this field with `value`.
     pub fn value(self, value: impl Into<RichTerm>) -> Field<Complete> {
         Field {
             record: Complete(Some(value.into())),
@@ -127,6 +148,7 @@ fn with_metadata(metadata: Option<MetaValue>, value: impl Into<RichTerm>) -> Ric
 }
 
 impl Field<Complete> {
+    /// Associate a finalized field builder with a [Record].
     pub fn with_record(self, r: Record) -> Record {
         let v = self.record;
         let f = Field {
@@ -142,6 +164,8 @@ impl Field<Complete> {
 }
 
 impl Field<Record> {
+    /// Finalize this field without assigning a value. This is useful for building record
+    /// contracts.
     pub fn no_value(mut self) -> Record {
         self.record.fields.push((
             self.path,
@@ -150,6 +174,7 @@ impl Field<Record> {
         self.record
     }
 
+    /// Finalize this field with `value`.
     pub fn value(mut self, value: impl Into<RichTerm>) -> Record {
         self.record
             .fields
@@ -158,6 +183,7 @@ impl Field<Record> {
     }
 }
 
+/// This is a builder for a Nickel record as a [RichTerm].
 #[derive(Debug)]
 pub struct Record {
     fields: Vec<(StaticPath, RichTerm)>,
@@ -172,6 +198,8 @@ impl Record {
         }
     }
 
+    /// Create a field with name `name`. Returns a [Field] builder which can be turned back into a
+    /// record builder using [Field<Record>::value] or [Field<Record>::no_value] as appropriate.
     pub fn field(self, name: impl AsRef<str>) -> Field<Record> {
         Field {
             record: self,
@@ -180,6 +208,11 @@ impl Record {
         }
     }
 
+    /// Create multiple fields from `fields`. Each item of the iterator should be a completed
+    /// [Field] builder, e.g.
+    /// ``
+    /// Field::name("foo").no_value()
+    /// ``
     pub fn fields<I, It>(mut self, fields: It) -> Self
     where
         I: Into<Field<Complete>>,
@@ -191,6 +224,10 @@ impl Record {
         self
     }
 
+    /// Create a field under the field name path `path`. Use this to construct a record of the form
+    /// ``
+    /// { foo = { bar = "baz" } } ~ { foo.bar = "baz" }
+    /// ``
     pub fn path<It, I>(self, path: It) -> Field<Record>
     where
         I: AsRef<str>,
@@ -203,11 +240,15 @@ impl Record {
         }
     }
 
+    /// Set the `attrs` field of the resulting record to `attrs`. This can be used to construct an
+    /// open record contract by using `RecordAttrs { open: true }`. See also [Record::open].
     pub fn attrs(mut self, attrs: RecordAttrs) -> Self {
         self.attrs = attrs;
         self
     }
 
+    /// Construct an open record. Equivalent to setting the Nickel record attributes to
+    /// `RecordAttrs { open: true }`
     #[allow(clippy::needless_update)]
     pub fn open(mut self) -> Self {
         self.attrs = RecordAttrs {
@@ -217,6 +258,7 @@ impl Record {
         self
     }
 
+    /// Finalize the builder and return the resulting Nickel record as a [RichTerm]
     pub fn build(self) -> RichTerm {
         fn elaborate_field_path(path: StaticPath, content: RichTerm) -> (FieldPathElem, RichTerm) {
             let mut it = path.into_iter();
