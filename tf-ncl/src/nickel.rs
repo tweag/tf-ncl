@@ -1,3 +1,4 @@
+//! Transforming the intermediate representation into Nickel [RichTerm]s
 use crate::intermediate::{self, Schema};
 use crate::nickel_builder as builder;
 use nickel_lang::term::{Contract, MergePriority, RichTerm, Term};

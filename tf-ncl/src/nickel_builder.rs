@@ -1,3 +1,4 @@
+//! A builder interface for constructing Nickel record terms
 use nickel_lang::{
     identifier::Ident,
     parser::utils::{build_record, FieldPathElem},

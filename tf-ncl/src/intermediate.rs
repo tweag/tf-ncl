@@ -1,3 +1,6 @@
+//! An intermediate representation for Terraform schemas. This representation is closer to the
+//! generated Nickel terms while not having to deal with all possible Nickel constructs when being
+//! processed.
 use std::{
     collections::HashMap,
     convert::{TryFrom, TryInto},
@@ -8,11 +11,14 @@ use serde::Deserialize;
 
 use crate::terraform::{TFBlock, TFBlockAttribute, TFBlockSchema, TFBlockType, TFSchema, TFType};
 
+/// The entire schema, split up by configured providers. The [String] key is the local name
+/// assigned to the provider.
 #[derive(Debug)]
 pub struct Schema {
     pub providers: HashMap<String, Provider>,
 }
 
+/// A single provider schema
 #[derive(Debug)]
 pub struct Provider {
     pub source: String,
@@ -22,6 +28,7 @@ pub struct Provider {
     pub resources: HashMap<String, Attribute>,
 }
 
+/// An attribute in an HCL block or in an HCL dictionary
 #[derive(Debug, Clone)]
 pub struct Attribute {
     pub description: Option<String>,
@@ -51,6 +58,8 @@ pub enum Type {
     Dictionary(Box<Type>),
 }
 
+/// A map from provider local name to [ProviderConfig]. This is ultimately determined by the choice
+/// of which schemas to generate.
 #[derive(Deserialize, Debug)]
 pub struct Providers(pub HashMap<String, ProviderConfig>);
 

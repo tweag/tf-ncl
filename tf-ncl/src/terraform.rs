@@ -1,3 +1,4 @@
+//! JSON deserialization of the Terraform schema format
 use serde::{
     de::{Error, Unexpected, Visitor},
     Deserialize, Deserializer,
@@ -34,8 +35,10 @@ pub struct TFBlock {
     pub description: Option<String>,
 }
 
-// Terraform schemas only ever set the `required`, `optional`, `computed` and `sensitive` fields to
-// `true` or don't set them at all.
+/// An HCL block attribute.
+///
+/// Terraform schemas only ever set the `required`, `optional`, `computed` and `sensitive` fields to
+/// `true` or don't set them at all.
 #[derive(Deserialize, Debug)]
 pub struct TFBlockAttribute {
     pub r#type: TFType,
