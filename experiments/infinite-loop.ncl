@@ -1,3 +1,30 @@
+let rec remove_field_path | array.NonEmpty -> {_: Dyn} -> {_: Dyn}
+                      = fun path r =>
+    if array.length path == 1  && builtin.is_str (array.head path)
+    then record.remove (array.head path) r
+    else if array.length path == 1 && builtin.is_enum (array.head path) && array.head path == `Wildcard
+    then {}
+    else if builtin.is_enum (array.head path) && array.head path == `Wildcard
+    then record.map (fun _name v => remove_field_path (array.tail path) v) r
+    else if !record.has_field (array.head path) r
+    then r
+    else r & { "%{array.head path}" | force = remove_field_path (array.tail path) r."%{array.head path}" }
+  in
+let remove_field_paths = fun paths r =>
+    array.foldl (fun rec_acc path => remove_field_path path rec_acc) r paths
+  in
+let isOverridableRecord = fun r => builtin.is_record r && record.has_field "overridableRecordType" r in
+let rec resolveOverridable = fun r => r |>
+  record.map (fun _name field =>
+    if builtin.is_record field
+    then if isOverridableRecord field
+      then field.value
+      else resolveOverridable field
+    else field)
+  in
+
+
+
 let fail = fun msg =>
   let FailWithTrace = fun label value => contract.blame_with msg label in (null | FailWithTrace)
   in
@@ -50,10 +77,10 @@ let
     = let rec go = fun acc_path r => 
         r |> record.map (fun name field =>
             if is_terraform_field_record field
-              then resolve_terraform_field_at (acc_path @ [name]) field
+              then resolve_terraform_field_at (acc_path @ [name]) field | Dyn
             else if builtin.is_record field
-              then go (acc_path @ [name]) field
-            else acc_path @ [name]
+              then go (acc_path @ [name]) field | Dyn
+            else acc_path @ [name] | Dyn
           )
       in fun r => go [] r
   in
@@ -84,52 +111,43 @@ let rec
 let
   resolve_reference
     | Array Str -> Str
-    = fun ns => "${%{string.join "." ns}}"
+    = fun ns => "${%{string.join "."}}"
   in
 
 let rec
   resolve_references = fun r => 
     if is_terraform_field_record r
     then if r.terraform_field_type != `Reference then fail "Expected only Terraform references"
-         else resolve_reference r.value
+         else resolve_reference r
     else if !builtin.is_record r
     then r
-    else r |> record.map (fun _n r => resolve_references r)
-  in
-
-let rec
-  computed_field_default = fun prefix path =>
-    let p = array.head path in
-      if array.length path == 1
-      then { "%{p}" | default = provider_computed (prefix @ [p]) }
-      else { "%{p}" | default = computed_field_default (prefix @ [p]) (array.tail path)}
-  in
-
-let
-  add_computed_field_defaults = fun prefix paths l r =>
-    r |> record.map (fun name r =>
-        array.foldl (fun r path => r & computed_field_default (prefix @ [name]) path) r paths
-      )
+    else resolve_references
   in
 
 let SchemaContract = {
-  test | { _: {
+  test | { res | {
     connection | {
       target | TerraformField Str,
-    } | optional,
+    },
     ip | TerraformField Str
-  }} | add_computed_field_defaults ["test"] [ ["ip"], ["id"] ],
+      | default = provider_computed ["test", "res", "ip"],
+  }},
   ..
 } in
 
-let mkConfig = fun v => v |> resolve_provider_computed |> delete_fields |> resolve_references
-in
-({
-  test.first_resource = {
-    connection.target = test.first_resource.ip,
+let Schema = fun label value =>
+  contract.apply SchemaContract label value
+    |> resolve_provider_computed |> delete_fields |> resolve_references
+  in
+[{
+  test.res = {
+    connection.target = test.res.ip,
   },
-  test.second_resource = {
-    ip | priority 0 = test.first_resource.ip,
+} | Schema,
+{
+  test.res = {
+    connection.target = test.res.ip,
+    ip = "127.0.0.1"
   },
-} | SchemaContract)
-|> mkConfig
+} | Schema,
+]
