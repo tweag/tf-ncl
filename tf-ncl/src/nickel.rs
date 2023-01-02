@@ -26,23 +26,22 @@ pub trait AsNickel {
 
 impl AsNickel for Schema {
     fn as_nickel(&self) -> RichTerm {
+        use builder::*;
         // TODO(vkleen): This is an evil hack until we have a better term construction method
         let add_id_field_contract = term_contract(Term::Var("addIdField__".into()));
         let required_providers = self.providers.iter().map(|(name, provider)| {
-            builder::Field::name(name)
-                .priority(MergePriority::Bottom)
-                .value(builder::Record::from([
-                    builder::Field::name("source")
-                        .priority(MergePriority::Bottom)
-                        .value(Term::Str(provider.source.clone())),
-                    builder::Field::name("version")
-                        .priority(MergePriority::Bottom)
-                        .value(Term::Str(provider.version.clone())),
-                ]))
+            Field::name(name).value(Record::from([
+                Field::name("source")
+                    .priority(MergePriority::Bottom)
+                    .value(Term::Str(provider.source.clone())),
+                Field::name("version")
+                    .priority(MergePriority::Bottom)
+                    .value(Term::Str(provider.version.clone())),
+            ]))
         });
 
-        let provider = builder::Record::from(self.providers.iter().map(|(name, provider)| {
-            builder::Field::name(name)
+        let provider = Record::from(self.providers.iter().map(|(name, provider)| {
+            Field::name(name)
                 .optional()
                 .contract(type_contract(Types(TypeF::Array(Box::new(Types(
                     TypeF::Flat(as_nickel_record(&provider.configuration)),
@@ -53,20 +52,20 @@ impl AsNickel for Schema {
         let resource = as_nickel_record(self.providers.values().flat_map(|p| p.resources.iter()));
         let data = as_nickel_record(self.providers.values().flat_map(|p| p.data_sources.iter()));
 
-        let output = builder::Record::from([
-            builder::Field::name("value")
+        let output = Record::from([
+            Field::name("value")
                 .optional()
                 .contract(type_contract(Types(TypeF::Str)))
                 .no_value(),
-            builder::Field::name("description")
+            Field::name("description")
                 .optional()
                 .contract(type_contract(Types(TypeF::Str)))
                 .no_value(),
-            builder::Field::name("sensitive")
+            Field::name("sensitive")
                 .optional()
                 .contract(type_contract(Types(TypeF::Bool)))
                 .no_value(),
-            builder::Field::name("depends_on")
+            Field::name("depends_on")
                 .optional()
                 .contract(type_contract(Types(TypeF::Array(Box::new(Types(
                     TypeF::Str,
@@ -74,25 +73,45 @@ impl AsNickel for Schema {
                 .no_value(),
         ]);
 
-        builder::Record::from([
-            builder::Field::path(["terraform", "required_providers"])
-                .priority(MergePriority::Bottom)
-                .value(builder::Record::from(required_providers)),
-            builder::Field::name("provider")
+        Record::from([
+            Field::name("terraform")
+                .contract(term_contract(
+                    Record::from([
+                        Field::name("required_providers")
+                            .contract(dict_contract(Record::from([
+                                Field::name("source")
+                                    .contract(type_contract(Types(TypeF::Str)))
+                                    .no_value(),
+                                Field::name("version")
+                                    .contract(type_contract(Types(TypeF::Str)))
+                                    .no_value(),
+                            ])))
+                            .no_value(),
+                        Field::name("backend")
+                            .contract(type_contract(Types(TypeF::Dyn)))
+                            .optional()
+                            .no_value(),
+                    ])
+                    .build(),
+                ))
+                .value(Record::from([
+                    Field::name("required_providers").value(Record::from(required_providers))
+                ])),
+            Field::name("provider")
                 .optional()
                 .contract(term_contract(provider))
                 .no_value(),
-            builder::Field::name("resource")
+            Field::name("resource")
                 .optional()
                 .contract(term_contract(resource))
                 .contract(add_id_field_contract.clone())
                 .no_value(),
-            builder::Field::name("data")
+            Field::name("data")
                 .optional()
                 .contract(term_contract(data))
                 .contract(add_id_field_contract)
                 .no_value(),
-            builder::Field::name("output")
+            Field::name("output")
                 .optional()
                 .contract(dict_contract(output))
                 .no_value(),
