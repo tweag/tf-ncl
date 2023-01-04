@@ -73,6 +73,29 @@ impl AsNickel for Schema {
                 .no_value(),
         ]);
 
+        let variable = Record::from([
+            Field::name("default")
+                .optional()
+                .contract(type_contract(Types(TypeF::Str)))
+                .no_value(),
+            Field::name("description")
+                .optional()
+                .contract(type_contract(Types(TypeF::Str)))
+                .no_value(),
+            Field::name("sensitive")
+                .optional()
+                .contract(type_contract(Types(TypeF::Bool)))
+                .no_value(),
+            Field::name("type")
+                .optional()
+                .contract(type_contract(Types(TypeF::Str)))
+                .no_value(),
+            Field::name("nullable")
+                .optional()
+                .contract(type_contract(Types(TypeF::Bool)))
+                .no_value(),
+        ]);
+
         Record::from([
             Field::name("terraform")
                 .contract(term_contract(
@@ -114,6 +137,10 @@ impl AsNickel for Schema {
             Field::name("output")
                 .optional()
                 .contract(dict_contract(output))
+                .no_value(),
+            Field::name("variable")
+                .optional()
+                .contract(dict_contract(variable))
                 .no_value(),
         ])
         .build()
