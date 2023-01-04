@@ -76,7 +76,7 @@ impl AsNickel for Schema {
         let variable = Record::from([
             Field::name("default")
                 .optional()
-                .contract(type_contract(Types(TypeF::Str)))
+                .contract(type_contract(Types(TypeF::Dyn)))
                 .no_value(),
             Field::name("description")
                 .optional()
