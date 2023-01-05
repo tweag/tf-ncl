@@ -6,7 +6,10 @@ use std::{
 
 use serde::Deserialize;
 
-use crate::terraform::{TFBlock, TFBlockAttribute, TFBlockSchema, TFBlockType, TFSchema, TFType};
+use crate::terraform::{
+    TFBlock, TFBlockAttribute, TFBlockNestingMode, TFBlockSchema, TFBlockType, TFNestedType,
+    TFSchema, TFType,
+};
 
 #[derive(Debug)]
 pub struct Schema {
@@ -618,12 +621,19 @@ impl TryFrom<TFBlockAttribute> for Attribute {
                 _ => Err(()),
             }
         }?;
+        let type_ = if let Some(t) = val.r#type {
+            t.try_into()
+        } else if let Some(t) = val.nested_type {
+            t.try_into()
+        } else {
+            Err(())
+        }?;
 
         Ok(Attribute {
             description: val.description,
             optional,
             interpolation,
-            type_: val.r#type.try_into()?,
+            type_,
         })
     }
 }
@@ -644,7 +654,7 @@ impl TryFrom<TFBlockType> for Attribute {
 impl TryFrom<TFBlockType> for Type {
     type Error = ();
     fn try_from(val: TFBlockType) -> Result<Self, Self::Error> {
-        use crate::terraform::TFBlockNestingMode::*;
+        use TFBlockNestingMode::*;
         match val.nesting_mode {
             Single => Self::try_from(val.block),
             List | Set => Ok(Type::List {
@@ -698,6 +708,26 @@ impl TryFrom<TFType> for Type {
                 Ok(Type::Object(inner?))
             }
             TFType::Tuple(_) => Err(()),
+        }
+    }
+}
+
+impl TryFrom<TFNestedType> for Type {
+    type Error = ();
+    fn try_from(val: TFNestedType) -> Result<Self, Self::Error> {
+        use TFBlockNestingMode::*;
+        let inner = Type::Object(
+            values_try_into(val.attributes).collect::<Result<HashMap<String, Attribute>, _>>()?,
+        );
+
+        match val.nesting_mode {
+            Single => Ok(inner),
+            List | Set => Ok(Type::List {
+                min: val.min_items,
+                max: val.max_items,
+                content: Box::new(inner),
+            }),
+            Map => Ok(Type::Dictionary(Box::new(inner))),
         }
     }
 }
