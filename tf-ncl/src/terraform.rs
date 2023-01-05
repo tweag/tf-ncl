@@ -38,7 +38,8 @@ pub struct TFBlock {
 // `true` or don't set them at all.
 #[derive(Deserialize, Debug)]
 pub struct TFBlockAttribute {
-    pub r#type: TFType,
+    pub r#type: Option<TFType>,
+    pub nested_type: Option<TFNestedType>,
     pub description: Option<String>,
     #[serde(default, deserialize_with = "terraform_bool")]
     pub required: bool,
@@ -77,6 +78,14 @@ pub enum TFBlockNestingMode {
     List,
     Set,
     Map,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TFNestedType {
+    pub attributes: HashMap<String, TFBlockAttribute>,
+    pub nesting_mode: TFBlockNestingMode,
+    pub min_items: Option<u32>,
+    pub max_items: Option<u32>,
 }
 
 #[derive(Debug)]
