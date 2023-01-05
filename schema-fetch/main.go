@@ -1,18 +1,55 @@
 package main
 
 import (
-	// "encoding/json"
+	"encoding/json"
 
 	"fmt"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/go-version"
+	"github.com/hashicorp/hcl-lang/schema"
 	tfaddr "github.com/hashicorp/terraform-registry-address"
 	"github.com/hashicorp/terraform-schema/module"
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
-type Schema struct {
+type Attribute struct {
+  Description string
+  Optional bool
+  Block map[string]Attribute `json:"Block,omitempty"`
+}
+
+func convert_attribute(as *schema.AttributeSchema) Attribute {
+  attr := Attribute{
+    Description: as.Description.Value,
+    Optional: as.IsOptional,
+  }
+  return attr
+}
+
+func convert_block(bs *schema.BlockSchema) Attribute {
+  spew.Dump(bs.DependentBody)
+  attr := Attribute{
+    Description: bs.Description.Value,
+    Optional: true,
+  }
+  if bs.Body != nil {
+    attr.Block = assemble_body(bs.Body)
+  }
+  return attr
+}
+
+func assemble_body(bs *schema.BodySchema) map[string]Attribute {
+  schema := make(map[string]Attribute)
+  for key, attr := range bs.Attributes {
+    schema[key] = convert_attribute(attr)
+  }
+
+  for key, block := range bs.Blocks {
+    schema[key] = convert_block(block)
+  }
+
+  return schema
 }
 
 func main() {
@@ -25,20 +62,13 @@ func main() {
 
   c, _ := version.NewConstraint("0.7.0")
   provider_reqs[tfaddr.NewProvider("registry.terraform.io", "dmacvicar", "libvirt")] = c
-  schema, err := sm.SchemaForModule(&module.Meta{
+  tf_schema, err := sm.SchemaForModule(&module.Meta{
     ProviderRequirements: provider_reqs,
   })
   if err != nil {
     panic(err)
   }
 
-  fmt.Println(schema.BlockTypes())
-
-  for key := range schema.Attributes {
-    fmt.Println(key)
-  }
-
-  spew.Dump(schema.Blocks["provider"])
-  // json,_ := json.Marshal(schema)
-  // fmt.Println(string(json))
+  json,_ := json.Marshal(assemble_body(tf_schema))
+  fmt.Println(string(json))
 }
