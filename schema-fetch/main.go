@@ -13,12 +13,6 @@ import (
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
-type Attribute struct {
-  Description string
-  Optional bool
-  Block map[string]Attribute `json:"Block,omitempty"`
-}
-
 func convert_attribute(as *schema.AttributeSchema) Attribute {
   attr := Attribute{
     Description: as.Description.Value,
@@ -34,7 +28,7 @@ func convert_block(bs *schema.BlockSchema) Attribute {
     Optional: true,
   }
   if bs.Body != nil {
-    attr.Block = assemble_body(bs.Body)
+    attr.Type = Dynamic{} //assemble_body(bs.Body)
   }
   return attr
 }
