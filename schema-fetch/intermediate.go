@@ -1,134 +1,98 @@
 package main
 
 import (
-  "encoding/json"
+	"encoding/json"
 )
 
 type Attribute struct {
-  Description string `json:"description"`
-  Optional bool `json:"optional"`
-  Interpolation InterpolationStrategy `json:"interpolation"`
-  Type Type `json:"type"`
+	Description   string                `json:"description"`
+	Optional      bool                  `json:"optional"`
+	Interpolation InterpolationStrategy `json:"interpolation"`
+	Type          Type                  `json:"type"`
 }
+
+type InterpolationTypeTag uint64
+
+const (
+	Nickel = iota
+	Terraform
+)
 
 type InterpolationStrategy struct {
-  InterpolationType string `json:"type"`
-  Force *bool `json:"force,omitempty"`
+	InterpolationType InterpolationTypeTag `json:"type"`
+	Force             bool                 `json:"force"`
 }
 
-type Type interface {
-  MinItems() *uint32
-  MaxItems() *uint32
-  Content() *Type
-  Object() map[string]Attribute
+func (s InterpolationStrategy) MarshalJSON() (b []byte, e error) {
+	switch s.InterpolationType {
+	case Nickel:
+		return json.Marshal(struct {
+			Type string `json:"type"`
+		}{
+			Type: "nickel",
+		})
+	case Terraform:
+		return json.Marshal(struct {
+			Type  string `json:"type"`
+			Force bool   `json:"force"`
+		}{
+			Type:  "terraform",
+			Force: s.Force,
+		})
+	}
+	return json.Marshal("unknown")
 }
 
-type Dynamic struct {}
+type TypeTag uint64
 
-func (t Dynamic) MinItems() *uint32 {
-  return nil
+const (
+	Dynamic = iota
+	String
+	Number
+	Bool
+	List
+	Object
+	Dictionary
+)
+
+func (t TypeTag) String() string {
+	switch t {
+	case Dynamic:
+		return "Dynamic"
+	case String:
+		return "String"
+	case Number:
+		return "Number"
+	case Bool:
+		return "Bool"
+	case List:
+		return "List"
+	case Object:
+		return "Object"
+	case Dictionary:
+		return "Dictionary"
+	}
+	return "unknown"
 }
 
-func (t Dynamic) MaxItems() *uint32 {
-  return nil
+type Type struct {
+	Tag      TypeTag              `json:"tag"`
+	MinItems *uint64              `json:"min,omitempty"`
+	MaxItems *uint64              `json:"max,omitempty"`
+	Content  *Type                `json:"content,omitempty"`
+	Object   *map[string]Attribute `json:"object,omitempty"`
 }
 
-func (t Dynamic) Content() *Type {
-  return nil
+func (t TypeTag) MarshalJSON() (b []byte, e error) {
+	return json.Marshal(t.String())
 }
 
-func (t Dynamic) Object() map[string]Attribute {
-  return make(map[string]Attribute, 0)
-}
-
-func (t Dynamic) MarshalJSON() (b []byte, e error) {
-  return json.Marshal(map[string]string{
-    "type": "Dynamic",
-  })
-}
-
-type String struct {}
-
-func (t String) MinItems() *uint32 {
-  return nil
-}
-
-func (t String) MaxItems() *uint32 {
-  return nil
-}
-
-func (t String) Content() *Type {
-  return nil
-}
-
-func (t String) Object() map[string]Attribute {
-  return make(map[string]Attribute, 0)
-}
-
-func (t String) MarshalJSON() (b []byte, e error) {
-  return json.Marshal(map[string]string{
-    "type": "String",
-  })
-}
-
-type Number struct {}
-
-func (t Number) MinItems() *uint32 {
-  return nil
-}
-
-func (t Number) MaxItems() *uint32 {
-  return nil
-}
-
-func (t Number) Content() *Type {
-  return nil
-}
-
-func (t Number) Object() map[string]Attribute {
-  return make(map[string]Attribute, 0)
-}
-
-func (t Number) MarshalJSON() (b []byte, e error) {
-  return json.Marshal(map[string]string{
-    "type": "Number",
-  })
-}
-
-type Bool struct {}
-
-func (t Bool) MinItems() *uint32 {
-  return nil
-}
-
-func (t Bool) MaxItems() *uint32 {
-  return nil
-}
-
-func (t Bool) Content() *Type {
-  return nil
-}
-
-func (t Bool) Object() map[string]Attribute {
-  return make(map[string]Attribute, 0)
-}
-
-func (t Bool) MarshalJSON() (b []byte, e error) {
-  return json.Marshal(map[string]string{
-    "type": "Bool",
-  })
-}
-
-type List struct {
-  minItems *uint32
-  maxItems *uint32
-  content *Type
-}
-
-type Object struct {
-  object map[string]Attribute
-}
-
-type Dictionary struct {
-  content *Type
+func merge_objects(os ...map[string]Attribute) map[string]Attribute {
+	res := map[string]Attribute{}
+	for _, o := range os {
+		for k, v := range o {
+			res[k] = v
+		}
+	}
+	return res
 }
