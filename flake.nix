@@ -148,6 +148,7 @@
             gopls
             gotools
             go-tools
+            gofumpt
           ];
           shellHook = ''
             ${pre-commit.shellHook}
