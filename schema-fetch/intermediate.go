@@ -76,15 +76,46 @@ func (t TypeTag) String() string {
 }
 
 type Type struct {
-	Tag      TypeTag              `json:"tag"`
-	MinItems *uint64              `json:"min,omitempty"`
-	MaxItems *uint64              `json:"max,omitempty"`
-	Content  *Type                `json:"content,omitempty"`
+	Tag      TypeTag
+	MinItems *uint64               `json:"min,omitempty"`
+	MaxItems *uint64               `json:"max,omitempty"`
+	Content  *Type                 `json:"content,omitempty"`
 	Object   *map[string]Attribute `json:"object,omitempty"`
 }
 
-func (t TypeTag) MarshalJSON() (b []byte, e error) {
-	return json.Marshal(t.String())
+type ListVariant struct {
+	MinItems *uint64 `json:"min,omitempty"`
+	MaxItems *uint64 `json:"max,omitempty"`
+	Content  *Type   `json:"content,omitempty"`
+}
+
+func (t Type) MarshalJSON() (b []byte, e error) {
+	switch t.Tag {
+	case List:
+		return json.Marshal(struct {
+			List ListVariant
+		}{
+			List: ListVariant{
+				MinItems: t.MinItems,
+				MaxItems: t.MaxItems,
+				Content:  t.Content,
+			},
+		})
+	case Object:
+		return json.Marshal(struct {
+			Object *map[string]Attribute
+		}{
+			Object: t.Object,
+		})
+	case Dictionary:
+		return json.Marshal(struct {
+			Dictionary *Type
+		}{
+			Dictionary: t.Content,
+		})
+	default:
+		return json.Marshal(t.Tag.String())
+	}
 }
 
 func merge_objects(os ...map[string]Attribute) map[string]Attribute {

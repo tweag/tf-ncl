@@ -63,7 +63,7 @@ func has_list_type(ecs schema.ExprConstraints) (bool, *Type) {
 				MaxItems: max_items,
 				Content:  &content,
 			}
-    case schema.ListExpr:
+		case schema.ListExpr:
 			content := extract_type(c.Elem)
 
 			var min_items, max_items *uint64
