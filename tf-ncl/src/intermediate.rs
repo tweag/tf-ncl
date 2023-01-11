@@ -4,7 +4,7 @@ use std::{
     fmt::Display,
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::terraform::{
     TFBlock, TFBlockAttribute, TFBlockNestingMode, TFBlockSchema, TFBlockType, TFNestedType,
@@ -25,21 +25,27 @@ pub struct Provider {
     pub resources: HashMap<String, Attribute>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GoSchema(pub HashMap<String, Attribute>);
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Attribute {
     pub description: Option<String>,
     pub optional: bool,
     pub interpolation: InterpolationStrategy,
+    #[serde(rename = "type")]
     pub type_: Type,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Deserialize, Serialize)]
+#[serde(tag = "type")]
+#[serde(rename_all = "lowercase")]
 pub enum InterpolationStrategy {
     Nickel,
     Terraform { force: bool },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum Type {
     Dynamic,
     String,
