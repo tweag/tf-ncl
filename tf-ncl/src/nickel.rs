@@ -1,4 +1,4 @@
-use crate::intermediate::{self, Schema};
+use crate::intermediate::{self, GoSchema, Schema};
 use crate::nickel_builder as builder;
 use nickel_lang::term::{Contract, MergePriority, RichTerm, Term};
 use nickel_lang::types::{TypeF, Types};
@@ -22,6 +22,12 @@ fn type_contract(t: impl Into<Types>) -> Contract {
 
 pub trait AsNickel {
     fn as_nickel(&self) -> RichTerm;
+}
+
+impl AsNickel for GoSchema {
+    fn as_nickel(&self) -> RichTerm {
+        as_nickel_record(&self.0)
+    }
 }
 
 impl AsNickel for Schema {
