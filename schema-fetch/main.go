@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
 
 	// "github.com/davecgh/go-spew/spew"
-	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/hcl-lang/schema"
-	tfaddr "github.com/hashicorp/terraform-registry-address"
 	"github.com/hashicorp/terraform-schema/module"
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 	"github.com/zclconf/go-cty/cty"
@@ -279,20 +279,31 @@ func assemble_body(bs *schema.BodySchema) map[string]Attribute {
 }
 
 func main() {
+  var provider_specs map[string]ProviderSpec
+  err := json.NewDecoder(os.Stdin).Decode(&provider_specs)
+  if err != nil {
+    log.Fatal(err)
+    return
+  }
+
+  store, e := NewSchemaStore(provider_specs)
+  if e != nil {
+    panic(e)
+  }
+
 	coreSchema, err := tfschema.CoreModuleSchemaForVersion(tfschema.LatestAvailableVersion)
 	if err != nil {
 		panic(err)
 	}
-	sm := tfschema.NewSchemaMerger(coreSchema)
-	provider_reqs := make(map[tfaddr.Provider]version.Constraints)
 
-	c, _ := version.NewConstraint("0.7.0")
-	provider_reqs[tfaddr.NewProvider("registry.terraform.io", "dmacvicar", "libvirt")] = c
-	tf_schema, err := sm.SchemaForModule(&module.Meta{
-		ProviderRequirements: provider_reqs,
+	sm := tfschema.NewSchemaMerger(coreSchema)
+	sm.SetSchemaReader(store)
+
+	tf_schema, e := sm.SchemaForModule(&module.Meta{
+		ProviderRequirements: store.ProviderReqs(),
 	})
-	if err != nil {
-		panic(err)
+	if e != nil {
+		panic(e)
 	}
 
 	json, _ := json.Marshal(assemble_body(tf_schema))
