@@ -3,6 +3,7 @@ module github.com/tweag/tf-ncl/schema-fetch
 go 1.19
 
 require (
+	github.com/davecgh/go-spew v1.1.1
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/hcl-lang v0.0.0-20221207101932-6bf6bd83e2bc
 	github.com/hashicorp/terraform-registry-address v0.1.0
