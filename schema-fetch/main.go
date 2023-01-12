@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 
-	// "github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/hcl-lang/schema"
 	"github.com/hashicorp/terraform-schema/module"
@@ -279,14 +278,12 @@ func assemble_body(bs *schema.BodySchema) map[string]Attribute {
 }
 
 func main() {
-  var provider_specs map[string]ProviderSpec
-  err := json.NewDecoder(os.Stdin).Decode(&provider_specs)
-  if err != nil {
-    log.Fatal(err)
-    return
+  if len(os.Args) < 2 {
+    panic("No provider schema directory passed")
   }
 
-  store, e := NewSchemaStore(provider_specs)
+  schema_dir := os.Args[1]
+  store, e := NewSchemaStore(os.DirFS(schema_dir))
   if e != nil {
     panic(e)
   }
@@ -301,6 +298,7 @@ func main() {
 
 	tf_schema, e := sm.SchemaForModule(&module.Meta{
 		ProviderRequirements: store.ProviderReqs(),
+    ProviderReferences: store.ProviderRefs(),
 	})
 	if e != nil {
 		panic(e)

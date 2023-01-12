@@ -1,12 +1,16 @@
 package main
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
+	"io"
+	"io/fs"
+	"path"
 
-	"github.com/davecgh/go-spew/spew"
 	version "github.com/hashicorp/go-version"
+	tfjson "github.com/hashicorp/terraform-json"
 	tfaddr "github.com/hashicorp/terraform-registry-address"
+	tfmodule "github.com/hashicorp/terraform-schema/module"
 	tfschema "github.com/hashicorp/terraform-schema/schema"
 )
 
@@ -17,9 +21,10 @@ type ProviderSpec struct {
 
 type Provider struct {
   Version *version.Version
+  SchemaReader io.Reader
 }
 
-func NewProvider(spec ProviderSpec) (*Provider, error) {
+func NewProvider(spec ProviderSpec, reader io.Reader) (*Provider, error) {
   version, e := version.NewVersion(spec.Version)
   if e != nil {
     return nil, e
@@ -27,22 +32,42 @@ func NewProvider(spec ProviderSpec) (*Provider, error) {
 
   return &Provider{
     Version: version,
+    SchemaReader: reader,
   }, nil
 }
 
 type SchemaStore struct {
+  local_names map[string]tfaddr.Provider
   providers map[tfaddr.Provider]Provider
 }
 
-func NewSchemaStore(specs map[string]ProviderSpec) (*SchemaStore, error) {
+func NewSchemaStore(fsys fs.FS) (*SchemaStore, error) {
+  specs_bytes, e := fs.ReadFile(fsys, "providers.json")
+  if e != nil {
+    return nil, e
+  }
+
+  var specs map[string]ProviderSpec
+  e = json.Unmarshal(specs_bytes, &specs)
+  if e != nil {
+    return nil, e
+  }
+
   providers := map[tfaddr.Provider]Provider{}
-  for _, spec := range specs {
+  local_names := map[string]tfaddr.Provider{}
+  for name, spec := range specs {
     k, e := tfaddr.ParseProviderSource(spec.Source)
     if e != nil {
       return nil, e
     }
+    local_names[name] = k
 
-    p, e := NewProvider(spec)
+    reader, e := fsys.Open(path.Join("schemas", fmt.Sprintf("%s.json", name)))
+    if e != nil {
+      return nil, e
+    }
+
+    p, e := NewProvider(spec, reader)
     if e != nil {
       return nil, e
     }
@@ -50,6 +75,7 @@ func NewSchemaStore(specs map[string]ProviderSpec) (*SchemaStore, error) {
     providers[k] = *p
   }
   return &SchemaStore{
+    local_names: local_names,
   	providers: providers,
   }, nil
 }
@@ -62,13 +88,32 @@ func (s *SchemaStore)ProviderReqs() map[tfaddr.Provider]version.Constraints {
   return ret
 }
 
+func (s *SchemaStore)ProviderRefs() map[tfmodule.ProviderRef]tfaddr.Provider {
+  ret := map[tfmodule.ProviderRef]tfaddr.Provider{}
+  for k, v := range s.local_names {
+    ret[tfmodule.ProviderRef{LocalName: k}] = v
+  }
+  return ret
+}
+
 func (s *SchemaStore) ProviderSchema(modPath string, addr tfaddr.Provider, vc version.Constraints) (*tfschema.ProviderSchema, error) {
   version := s.providers[addr].Version
   if !vc.Check(version) {
     panic("Incompatible provider version requested")
   }
 
-  spew.Dump(addr)
-  spew.Dump(s.providers[addr])
-  return nil, errors.New("not implemented")
+  var jsonSchemas tfjson.ProviderSchemas
+  e := json.NewDecoder(s.providers[addr].SchemaReader).Decode(&jsonSchemas)
+  if e != nil {
+    // the terraform-schema SchemaMerger doesn't actually care if we return an error
+    panic(e)
+  }
+
+  ps, ok := jsonSchemas.Schemas[addr.String()]
+  if !ok {
+    panic(fmt.Errorf("%q: schema not found", addr))
+  }
+
+  schema := tfschema.ProviderSchemaFromJson(ps, addr)
+  return schema, nil
 }
