@@ -124,6 +124,10 @@
           (import "${self}/nix/terraform_schema.nix" (providerFn terraformProviders))
           { };
 
+        generateJsonSchemas = providerFn: pkgs.callPackage
+          (import "${self}/nix/terraform_schemas.nix" (providerFn terraformProviders))
+          { };
+
         generateSchema = providerFn: pkgs.callPackage
           "${self}/nix/nickel_schema.nix"
           { jsonSchema = generateJsonSchema providerFn; inherit (packages) tf-ncl; };
