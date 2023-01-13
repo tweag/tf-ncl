@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 
+	// "github.com/davecgh/go-spew/spew"
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/hcl-lang/schema"
 	"github.com/hashicorp/terraform-schema/module"
@@ -179,7 +181,44 @@ func classify_labels(bs *schema.BlockSchema) []Label {
 	return ret
 }
 
-func assemble_blocks(bs *schema.BlockSchema, labels []Label, accumulated_bodies []*schema.BodySchema) Attribute {
+var BLOCK_TYPE_MAP = map[string]schema.BlockType{
+  "provider": schema.BlockTypeList,
+  "moved": schema.BlockTypeList,
+  "precondition": schema.BlockTypeList,
+  "postcondition": schema.BlockTypeList,
+}
+
+func wrap_block_type(key string, bs *schema.BlockSchema, attr Attribute) Attribute {
+  t := bs.Type
+  if t == schema.BlockTypeNil {
+    new_t, ok := BLOCK_TYPE_MAP[key]
+    if ok {
+      t = new_t
+    } else {
+      t = schema.BlockTypeObject
+    }
+  }
+  switch t {
+  case schema.BlockTypeObject:
+    return attr
+  case schema.BlockTypeList, schema.BlockTypeSet:
+    return Attribute{
+      Description: attr.Description,
+      Optional: attr.Optional,
+      Interpolation: attr.Interpolation,
+      Type: Type{
+        Tag: List,
+        MinItems: &bs.MinItems,
+        MaxItems: &bs.MaxItems,
+        Content: &attr.Type,
+      },
+    }
+  default:
+    panic(errors.New(fmt.Sprint("Unknown block type ", t.GoString())))
+  }
+}
+
+func assemble_blocks(key string, bs *schema.BlockSchema, labels []Label, accumulated_bodies []*schema.BodySchema) Attribute {
 	if len(labels) == 0 {
 		obj := assemble_bodies(accumulated_bodies...)
 		description := bs.Description.Value
@@ -189,7 +228,7 @@ func assemble_blocks(bs *schema.BlockSchema, labels []Label, accumulated_bodies 
 				description = last_description.Value
 			}
 		}
-		return Attribute{
+		return wrap_block_type(key, bs, Attribute{
 			Description: description,
 			// TODO(vkleen): compute these values properly
 			Optional:      true,
@@ -198,11 +237,11 @@ func assemble_blocks(bs *schema.BlockSchema, labels []Label, accumulated_bodies 
 				Tag:    Object,
 				Object: &obj,
 			},
-		}
+		})
 	}
 	l := labels[0]
 	if l.wildcard {
-		t := assemble_blocks(bs, labels[1:], accumulated_bodies).Type
+		t := assemble_blocks(key, bs, labels[1:], accumulated_bodies).Type
 		return Attribute{
 			Description: bs.Description.Value,
 			// TODO(vkleen): compute these values properly
@@ -216,7 +255,7 @@ func assemble_blocks(bs *schema.BlockSchema, labels []Label, accumulated_bodies 
 	} else {
 		obj := map[string]Attribute{}
 		for k, v := range l.possible_values {
-			obj[k] = assemble_blocks(bs, labels[1:], append(accumulated_bodies, &v))
+			obj[k] = assemble_blocks(key, bs, labels[1:], append(accumulated_bodies, &v))
 		}
 		return Attribute{
 			Description: bs.Description.Value,
@@ -231,7 +270,7 @@ func assemble_blocks(bs *schema.BlockSchema, labels []Label, accumulated_bodies 
 	}
 }
 
-func convert_block(bs *schema.BlockSchema) Attribute {
+func convert_block(key string, bs *schema.BlockSchema) Attribute {
 	if bs.Body != nil && bs.Body.AnyAttribute != nil {
 		if bs.Body.Blocks != nil || bs.Body.Attributes != nil {
 			panic("Don't know how to handle AnyAttribute together with explicit attributes")
@@ -253,7 +292,7 @@ func convert_block(bs *schema.BlockSchema) Attribute {
 	if bs.Body != nil {
 		bodies = []*schema.BodySchema{bs.Body}
 	}
-	return assemble_blocks(bs, classify_labels(bs), bodies)
+	return assemble_blocks(key, bs, classify_labels(bs), bodies)
 }
 
 func assemble_bodies(bs ...*schema.BodySchema) map[string]Attribute {
@@ -271,7 +310,7 @@ func assemble_body(bs *schema.BodySchema) map[string]Attribute {
 	}
 
 	for key, block := range bs.Blocks {
-		schema[key] = convert_block(block)
+		schema[key] = convert_block(key, block)
 	}
 
 	return schema
@@ -304,6 +343,7 @@ func main() {
 		panic(e)
 	}
 
+  // log.Print(spew.Sdump(tf_schema))
 	json, _ := json.Marshal(assemble_body(tf_schema))
 	fmt.Println(string(json))
 }

@@ -99,6 +99,7 @@ func (s *SchemaStore)ProviderRefs() map[tfmodule.ProviderRef]tfaddr.Provider {
 func (s *SchemaStore) ProviderSchema(modPath string, addr tfaddr.Provider, vc version.Constraints) (*tfschema.ProviderSchema, error) {
   version := s.providers[addr].Version
   if !vc.Check(version) {
+    // the terraform-schema SchemaMerger doesn't actually care if we return an error
     panic("Incompatible provider version requested")
   }
 
@@ -111,6 +112,7 @@ func (s *SchemaStore) ProviderSchema(modPath string, addr tfaddr.Provider, vc ve
 
   ps, ok := jsonSchemas.Schemas[addr.String()]
   if !ok {
+    // the terraform-schema SchemaMerger doesn't actually care if we return an error
     panic(fmt.Errorf("%q: schema not found", addr))
   }
 
