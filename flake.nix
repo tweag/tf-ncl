@@ -64,13 +64,13 @@
           inherit cargoArtifacts;
         });
 
-        schema-fetch = pkgs.buildGoModule {
-          pname = "schema-fetch";
+        schema-merge = pkgs.buildGoModule {
+          pname = "schema-merge";
           inherit version;
 
-          src = ./schema-fetch;
+          src = ./schema-merge;
 
-          vendorSha256 = null;
+          vendorHash = "sha256-773+/aWJvBlY6EdS7T41tiJAZJiBcqDg+nKuv88R9vc=";
         };
 
         pre-commit = inputs.pre-commit-hooks.lib.${system}.run {
@@ -81,6 +81,7 @@
           hooks = {
             nixpkgs-fmt.enable = true;
             rustfmt.enable = true;
+            gofmt.enable = true;
           };
         };
 
@@ -109,12 +110,12 @@
             ))
             schemas) //
           {
-            inherit tf-ncl pre-commit;
+            inherit tf-ncl schema-merge pre-commit;
           };
 
         packages = {
           default = packages.tf-ncl;
-          inherit tf-ncl schema-fetch;
+          inherit tf-ncl schema-merge;
           terraform = pkgs.terraform;
         };
 
@@ -122,11 +123,7 @@
 
         generateJsonSchema = providerFn: pkgs.callPackage
           (import "${self}/nix/terraform_schema.nix" (providerFn terraformProviders))
-          { };
-
-        generateJsonSchemas = providerFn: pkgs.callPackage
-          (import "${self}/nix/terraform_schemas.nix" (providerFn terraformProviders))
-          { };
+          { inherit (packages) schema-merge; };
 
         generateSchema = providerFn: pkgs.callPackage
           "${self}/nix/nickel_schema.nix"

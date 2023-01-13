@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
-
-	// "github.com/davecgh/go-spew/spew"
+	//
 	"github.com/hashicorp/hcl-lang/lang"
 	"github.com/hashicorp/hcl-lang/schema"
 	"github.com/hashicorp/terraform-schema/module"
@@ -181,41 +179,35 @@ func classify_labels(bs *schema.BlockSchema) []Label {
 	return ret
 }
 
-var BLOCK_TYPE_MAP = map[string]schema.BlockType{
-  "provider": schema.BlockTypeList,
-  "moved": schema.BlockTypeList,
-  "precondition": schema.BlockTypeList,
-  "postcondition": schema.BlockTypeList,
-}
-
 func wrap_block_type(key string, bs *schema.BlockSchema, attr Attribute) Attribute {
-  t := bs.Type
-  if t == schema.BlockTypeNil {
-    new_t, ok := BLOCK_TYPE_MAP[key]
-    if ok {
-      t = new_t
-    } else {
-      t = schema.BlockTypeObject
-    }
-  }
-  switch t {
-  case schema.BlockTypeObject:
-    return attr
-  case schema.BlockTypeList, schema.BlockTypeSet:
-    return Attribute{
-      Description: attr.Description,
-      Optional: attr.Optional,
-      Interpolation: attr.Interpolation,
-      Type: Type{
-        Tag: List,
-        MinItems: &bs.MinItems,
-        MaxItems: &bs.MaxItems,
-        Content: &attr.Type,
-      },
-    }
-  default:
-    panic(errors.New(fmt.Sprint("Unknown block type ", t.GoString())))
-  }
+	t := bs.Type
+
+	if t == schema.BlockTypeNil {
+		t = schema.BlockTypeList
+	}
+
+	if bs.MaxItems == 1 {
+		t = schema.BlockTypeObject
+	}
+
+	switch t {
+	case schema.BlockTypeObject:
+		return attr
+	case schema.BlockTypeList, schema.BlockTypeSet:
+		return Attribute{
+			Description:   attr.Description,
+			Optional:      attr.Optional,
+			Interpolation: attr.Interpolation,
+			Type: Type{
+				Tag:      List,
+				MinItems: &bs.MinItems,
+				MaxItems: &bs.MaxItems,
+				Content:  &attr.Type,
+			},
+		}
+	default:
+		panic(errors.New(fmt.Sprint("Unknown block type ", t.GoString())))
+	}
 }
 
 func assemble_blocks(key string, bs *schema.BlockSchema, labels []Label, accumulated_bodies []*schema.BodySchema) Attribute {
@@ -317,15 +309,15 @@ func assemble_body(bs *schema.BodySchema) map[string]Attribute {
 }
 
 func main() {
-  if len(os.Args) < 2 {
-    panic("No provider schema directory passed")
-  }
+	if len(os.Args) < 2 {
+		panic("No provider schema directory passed")
+	}
 
-  schema_dir := os.Args[1]
-  store, e := NewSchemaStore(os.DirFS(schema_dir))
-  if e != nil {
-    panic(e)
-  }
+	schema_dir := os.Args[1]
+	store, e := NewSchemaStore(os.DirFS(schema_dir))
+	if e != nil {
+		panic(e)
+	}
 
 	coreSchema, err := tfschema.CoreModuleSchemaForVersion(tfschema.LatestAvailableVersion)
 	if err != nil {
@@ -337,13 +329,11 @@ func main() {
 
 	tf_schema, e := sm.SchemaForModule(&module.Meta{
 		ProviderRequirements: store.ProviderReqs(),
-    ProviderReferences: store.ProviderRefs(),
+		ProviderReferences:   store.ProviderRefs(),
 	})
 	if e != nil {
 		panic(e)
 	}
-
-  // log.Print(spew.Sdump(tf_schema))
 	json, _ := json.Marshal(assemble_body(tf_schema))
 	fmt.Println(string(json))
 }
