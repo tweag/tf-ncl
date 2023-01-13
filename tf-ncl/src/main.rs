@@ -16,6 +16,8 @@ use tf_ncl::{
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    #[arg(value_name = "REQUIRED-PROVIDERS")]
+    providers: PathBuf,
     #[arg(value_name = "TERRAFORM-SCHEMA")]
     schema: Option<PathBuf>,
 }
