@@ -98,9 +98,17 @@
                 conf = pkgs.writeText "main.tf.ncl" ''
                   let Tf = import "${drv}" in
                   ({
-                    config.output = {
-                      "ip".value = "1.2.3.4",
-                    }
+                    config = {
+                      output = {
+                        "ip".value = "1.2.3.4",
+                      },
+                      variable."test-var" = {
+                        sensitive = true,
+                      },
+                      terraform.backend.local = {
+                        path = "dummy path"
+                      },
+                    },
                   } | Tf.Config).renderable_config
                 '';
               in
