@@ -52,7 +52,13 @@
 
         craneLib = (inputs.crane.mkLib pkgs).overrideToolchain rustToolchain;
 
-        tf-ncl-src = craneLib.cleanCargoSource ./.;
+        tf-ncl-src = pkgs.lib.cleanSourceWith {
+          src = pkgs.lib.cleanSource ./.;
+          filter = path: type: builtins.any (filter: filter path type) [
+            (path: _type: builtins.match ".*\.ncl$" path != null)
+            craneLib.filterCargoSources
+          ];
+        };
 
         craneArgs = (craneLib.crateNameFromCargoToml { cargoToml = ./tf-ncl/Cargo.toml; }) // {
           src = tf-ncl-src;

@@ -847,7 +847,7 @@ dependencies = [
 [[package]]
 name = "nickel-lang"
 version = "0.3.1"
-source = "git+https://github.com/tweag/nickel#f7088e33ed2e1372f9ba5f4a6e89817877a18dd8"
+source = "git+https://github.com/tweag/nickel#5449b4c63f247cc804221f0f1cbdc865e8496784"
 dependencies = [
  "ansi_term",
  "codespan",

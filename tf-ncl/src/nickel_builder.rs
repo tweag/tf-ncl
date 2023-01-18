@@ -164,6 +164,17 @@ pub struct Record {
     attrs: RecordAttrs,
 }
 
+fn elaborate_field_path(path: StaticPath, content: RichTerm) -> (FieldPathElem, RichTerm) {
+    let mut it = path.into_iter();
+    let fst = it.next().unwrap();
+
+    let content = it.rev().fold(content, |acc, id| {
+        Term::Record(RecordData::with_fields([(id, acc)].into())).into()
+    });
+
+    (FieldPathElem::Ident(fst), content)
+}
+
 impl Record {
     pub fn new() -> Self {
         Record {
@@ -218,17 +229,6 @@ impl Record {
     }
 
     pub fn build(self) -> RichTerm {
-        fn elaborate_field_path(path: StaticPath, content: RichTerm) -> (FieldPathElem, RichTerm) {
-            let mut it = path.into_iter();
-            let fst = it.next().unwrap();
-
-            let content = it.rev().fold(content, |acc, id| {
-                Term::Record(RecordData::with_fields([(id, acc)].into())).into()
-            });
-
-            (FieldPathElem::Ident(fst), content)
-        }
-
         let elaborated = self
             .fields
             .into_iter()
@@ -263,7 +263,7 @@ impl From<Record> for RichTerm {
 #[cfg(test)]
 mod tests {
     use nickel_lang::{
-        parser::utils::{build_record, elaborate_field_path, FieldPathElem},
+        parser::utils::{build_record, FieldPathElem},
         term::RichTerm,
         types::{TypeF, Types},
     };
@@ -431,10 +431,7 @@ mod tests {
             build_record(
                 vec![
                     elaborate_field_path(
-                        vec![
-                            FieldPathElem::Ident("terraform".into()),
-                            FieldPathElem::Ident("required_providers".into())
-                        ],
+                        vec!["terraform".into(), "required_providers".into()],
                         build_record(
                             vec![
                                 (FieldPathElem::Ident("foo".into()), Term::Null.into()),
@@ -446,9 +443,9 @@ mod tests {
                     ),
                     elaborate_field_path(
                         vec![
-                            FieldPathElem::Ident("terraform".into()),
-                            FieldPathElem::Ident("required_providers".into()),
-                            FieldPathElem::Ident("foo".into())
+                            "terraform".into(),
+                            "required_providers".into(),
+                            "foo".into()
                         ],
                         Term::Str("hello world!".into()).into()
                     )
