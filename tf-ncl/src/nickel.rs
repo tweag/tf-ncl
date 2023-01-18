@@ -1,4 +1,4 @@
-use crate::intermediate::{self, GoSchema, Schema};
+use crate::intermediate::{self, GoSchema, Providers, Schema, WithProviders};
 use crate::nickel_builder as builder;
 use nickel_lang::term::{Contract, MergePriority, RichTerm, Term};
 use nickel_lang::types::{TypeF, Types};
@@ -24,9 +24,29 @@ pub trait AsNickel {
     fn as_nickel(&self) -> RichTerm;
 }
 
-impl AsNickel for GoSchema {
+impl AsNickel for WithProviders<GoSchema> {
     fn as_nickel(&self) -> RichTerm {
-        as_nickel_record(&self.0)
+        as_nickel_record(&self.data.0)
+            // .path(["terraform", "required_providers"])
+            // .value(self.providers.as_nickel())
+            .build()
+    }
+}
+
+impl AsNickel for Providers {
+    fn as_nickel(&self) -> RichTerm {
+        use builder::*;
+        Record::from(self.0.iter().map(|(name, provider)| {
+            Field::name(name).value(Record::from([
+                Field::name("source")
+                    .priority(MergePriority::Bottom)
+                    .value(Term::Str(provider.source.clone())),
+                Field::name("version")
+                    .priority(MergePriority::Bottom)
+                    .value(Term::Str(provider.version.clone())),
+            ]))
+        }))
+        .build()
     }
 }
 
@@ -50,7 +70,7 @@ impl AsNickel for Schema {
             Field::name(name)
                 .optional()
                 .contract(type_contract(Types(TypeF::Array(Box::new(Types(
-                    TypeF::Flat(as_nickel_record(&provider.configuration)),
+                    TypeF::Flat(as_nickel_record(&provider.configuration).build()),
                 ))))))
                 .no_value()
         }));
@@ -195,15 +215,44 @@ pub trait AsNickelType {
     fn as_nickel_type(&self) -> Types;
 }
 
+enum PrimitiveType {
+    Dyn,
+    Str,
+    Num,
+    Bool,
+}
+
+impl From<PrimitiveType> for RichTerm {
+    fn from(t: PrimitiveType) -> Self {
+        use nickel_lang::term::Term::Var;
+        use PrimitiveType::*;
+        match t {
+            Dyn => Var("Dyn".into()).into(),
+            Str => Var("Str".into()).into(),
+            Num => Var("Num".into()).into(),
+            Bool => Var("Bool".into()).into(),
+        }
+    }
+}
+
 impl AsNickelType for &intermediate::Type {
     fn as_nickel_type(&self) -> Types {
         use intermediate::Type::*;
+        fn tfvar(inner: impl Into<RichTerm>) -> Types {
+            use nickel_lang::mk_app;
+            Types(TypeF::Flat(mk_app!(
+                Term::Var("TfNcl.Tf".into()),
+                inner.into()
+            )))
+        }
+
         match self {
-            Dynamic => Types(TypeF::Dyn),
-            String => Types(TypeF::Str),
-            Number => Types(TypeF::Num),
-            Bool => Types(TypeF::Bool),
+            Dynamic => tfvar(PrimitiveType::Dyn),
+            String => tfvar(PrimitiveType::Str),
+            Number => tfvar(PrimitiveType::Num),
+            Bool => tfvar(PrimitiveType::Bool),
             //TODO(vkleen): min and max should be represented as a contract
+            //TODO(vkleen): tfvar wrapping is unclear
             List {
                 min: _,
                 max: _,
@@ -222,7 +271,7 @@ impl AsNickelType for &intermediate::Type {
     }
 }
 
-fn as_nickel_record<K, V, It>(r: It) -> RichTerm
+fn as_nickel_record<K, V, It>(r: It) -> builder::Record
 where
     K: AsRef<str>,
     V: AsNickelField,
@@ -232,5 +281,4 @@ where
         r.into_iter()
             .map(|(k, v)| v.as_nickel_field(builder::Field::name(k))),
     )
-    .build()
 }

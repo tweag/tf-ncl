@@ -81,7 +81,7 @@ where
     fn with_providers(self, providers: Providers) -> WithProviders<Self>;
 }
 
-impl IntoWithProviders for TFSchema {
+impl<T> IntoWithProviders for T {
     fn with_providers(self, providers: Providers) -> WithProviders<Self> {
         WithProviders {
             providers,
