@@ -27,8 +27,8 @@ pub trait AsNickel {
 impl AsNickel for WithProviders<GoSchema> {
     fn as_nickel(&self) -> RichTerm {
         as_nickel_record(&self.data.0)
-            // .path(["terraform", "required_providers"])
-            // .value(self.providers.as_nickel())
+            .path(["terraform", "required_providers"])
+            .value(self.providers.as_nickel())
             .build()
     }
 }
