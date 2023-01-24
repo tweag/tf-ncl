@@ -16,7 +16,7 @@ pub trait AsNickel {
 
 impl AsNickel for WithProviders<GoSchema> {
     fn as_nickel(&self) -> RichTerm {
-        as_nickel_record(&self.data.0)
+        as_nickel_record(&self.data.schema)
             .path(["terraform", "required_providers"])
             .value(self.providers.as_nickel())
             .build()
@@ -55,25 +55,12 @@ impl AsNickelField for &intermediate::Attribute {
         let intermediate::Attribute {
             description,
             optional,
-            ///TODO(vkleen) Handle interpolation properly
-                interpolation: _,
             type_,
         } = self;
         field
             .some_doc(description.clone())
             .set_optional(*optional)
             .contract(type_contract(type_.as_nickel_type()))
-            .no_value()
-    }
-}
-
-impl AsNickelField for &intermediate::Type {
-    fn as_nickel_field(
-        &self,
-        field: builder::Field<builder::Incomplete>,
-    ) -> builder::Field<builder::Complete> {
-        field
-            .contract(type_contract(self.as_nickel_type()))
             .no_value()
     }
 }

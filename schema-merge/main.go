@@ -26,13 +26,13 @@ func convert_primitive_type(t cty.Type) Type {
 	return Type{Tag: Dynamic}
 }
 
-func has_object_type(ecs schema.ExprConstraints) (bool, *Type) {
+func has_object_type(computed_fields *[]FieldDescriptor, path []string, ecs schema.ExprConstraints) (bool, *Type) {
 	for _, ec := range ecs {
 		switch c := ec.(type) {
 		case schema.ObjectExpr:
 			obj := map[string]Attribute{}
 			for k, v := range c.Attributes {
-				obj[k] = convert_attribute(v)
+				obj[k] = convert_attribute(computed_fields, append(path, k), v)
 			}
 			return true, &Type{
 				Tag:    Object,
@@ -43,11 +43,12 @@ func has_object_type(ecs schema.ExprConstraints) (bool, *Type) {
 	return false, nil
 }
 
-func has_list_type(ecs schema.ExprConstraints) (bool, *Type) {
+func has_list_type(computed_fields *[]FieldDescriptor, path []string, ecs schema.ExprConstraints) (bool, *Type) {
 	for _, ec := range ecs {
 		switch c := ec.(type) {
 		case schema.SetExpr:
-			content := extract_type(c.Elem)
+			// TODO(vkleen) sets don't play well with the path concept
+			content := extract_type(computed_fields, path, c.Elem)
 
 			var min_items, max_items *uint64
 			if c.MinItems != 0 {
@@ -64,7 +65,8 @@ func has_list_type(ecs schema.ExprConstraints) (bool, *Type) {
 				Content:  &content,
 			}
 		case schema.ListExpr:
-			content := extract_type(c.Elem)
+			// TODO(vkleen) lists don't play well with the path concept
+			content := extract_type(computed_fields, path, c.Elem)
 
 			var min_items, max_items *uint64
 			if c.MinItems != 0 {
@@ -86,12 +88,12 @@ func has_list_type(ecs schema.ExprConstraints) (bool, *Type) {
 }
 
 // TODO(vkleen) Handle enumerations
-func extract_type(ecs schema.ExprConstraints) Type {
-	if is_object, t := has_object_type(ecs); is_object {
+func extract_type(computed_fields *[]FieldDescriptor, path []string, ecs schema.ExprConstraints) Type {
+	if is_object, t := has_object_type(computed_fields, path, ecs); is_object {
 		return *t
 	}
 
-	if is_list, t := has_list_type(ecs); is_list {
+	if is_list, t := has_list_type(computed_fields, path, ecs); is_list {
 		return *t
 	}
 
@@ -108,31 +110,44 @@ func extract_type(ecs schema.ExprConstraints) Type {
 	return Type{Tag: Dynamic}
 }
 
-func extract_optional_interpolation(as *schema.AttributeSchema) (bool, InterpolationStrategy) {
-	switch {
-	case as.IsOptional && !as.IsRequired && !as.IsComputed:
-		return true, InterpolationStrategy{InterpolationType: Nickel}
-	case !as.IsOptional && as.IsRequired && !as.IsComputed:
-		return false, InterpolationStrategy{InterpolationType: Nickel}
-	case !as.IsOptional && !as.IsRequired && as.IsComputed:
-		// TODO(vkleen) Once interpolation of computed fields is properly handled,
-		// these fields should no longer be optional
-		return true, InterpolationStrategy{InterpolationType: Terraform, Force: true}
-	case as.IsOptional && !as.IsRequired && as.IsComputed:
-		// TODO(vkleen) Once interpolation of computed fields is properly handled,
-		// these fields should no longer be optional
-		return true, InterpolationStrategy{InterpolationType: Terraform, Force: false}
+func extract_optional(computed_fields *[]FieldDescriptor, path []string, as *schema.AttributeSchema) bool {
+	optional := as.IsOptional
+	// Terraform treats `id` fields specially
+	if path[len(path)-1] == "id" {
+		optional = false
 	}
-	return true, InterpolationStrategy{InterpolationType: Nickel}
+
+	switch {
+	case optional && !as.IsRequired && !as.IsComputed:
+		return true
+	case !optional && as.IsRequired && !as.IsComputed:
+		return false
+	case !optional && !as.IsRequired && as.IsComputed:
+		// TODO(vkleen) Once interpolation of computed fields is properly handled,
+		// these fields should no longer be optional
+		*computed_fields = append(*computed_fields, FieldDescriptor{
+			Force: true,
+			Path:  append([]string(nil), path...),
+		})
+		return true
+	case optional && !as.IsRequired && as.IsComputed:
+		// TODO(vkleen) Once interpolation of computed fields is properly handled,
+		// these fields should no longer be optional
+		*computed_fields = append(*computed_fields, FieldDescriptor{
+			Force: false,
+			Path:  append([]string(nil), path...),
+		})
+		return true
+	}
+	return true
 }
 
-func convert_attribute(as *schema.AttributeSchema) Attribute {
-	o, i := extract_optional_interpolation(as)
+func convert_attribute(computed_fields *[]FieldDescriptor, path []string, as *schema.AttributeSchema) Attribute {
+	o := extract_optional(computed_fields, path, as)
 	attr := Attribute{
-		Description:   as.Description.Value,
-		Optional:      o,
-		Interpolation: i,
-		Type:          extract_type(as.Expr),
+		Description: as.Description.Value,
+		Optional:    o,
+		Type:        extract_type(computed_fields, path, as.Expr),
 	}
 	return attr
 }
@@ -230,9 +245,8 @@ func wrap_block_type(path []string, labels []Label, bs *schema.BlockSchema, attr
 		return attr
 	case schema.BlockTypeList, schema.BlockTypeSet:
 		return Attribute{
-			Description:   attr.Description,
-			Optional:      attr.Optional,
-			Interpolation: attr.Interpolation,
+			Description: attr.Description,
+			Optional:    attr.Optional,
 			Type: Type{
 				Tag:      List,
 				MinItems: &bs.MinItems,
@@ -245,9 +259,9 @@ func wrap_block_type(path []string, labels []Label, bs *schema.BlockSchema, attr
 	}
 }
 
-func assemble_blocks(path []string, bs *schema.BlockSchema, all_labels []Label, labels []Label, accumulated_bodies []*schema.BodySchema) Attribute {
+func assemble_blocks(computed_fields *[]FieldDescriptor, path []string, bs *schema.BlockSchema, all_labels []Label, labels []Label, accumulated_bodies []*schema.BodySchema) Attribute {
 	if len(labels) == 0 {
-		obj := assemble_bodies(path, accumulated_bodies...)
+		obj := assemble_bodies(computed_fields, path, accumulated_bodies...)
 		description := bs.Description.Value
 		if len(accumulated_bodies) > 0 {
 			last_description := accumulated_bodies[len(accumulated_bodies)-1].Description
@@ -258,8 +272,7 @@ func assemble_blocks(path []string, bs *schema.BlockSchema, all_labels []Label, 
 		return wrap_block_type(path, all_labels, bs, Attribute{
 			Description: description,
 			// TODO(vkleen): compute these values properly
-			Optional:      true,
-			Interpolation: InterpolationStrategy{InterpolationType: Nickel},
+			Optional: true,
 			Type: Type{
 				Tag:    Object,
 				Object: &obj,
@@ -268,12 +281,11 @@ func assemble_blocks(path []string, bs *schema.BlockSchema, all_labels []Label, 
 	}
 	l := labels[0]
 	if l.wildcard {
-		t := assemble_blocks(path, bs, all_labels, labels[1:], accumulated_bodies).Type
+		t := assemble_blocks(computed_fields, append(path, "_"), bs, all_labels, labels[1:], accumulated_bodies).Type
 		return Attribute{
 			Description: bs.Description.Value,
 			// TODO(vkleen): compute these values properly
-			Optional:      true,
-			Interpolation: InterpolationStrategy{InterpolationType: Nickel},
+			Optional: true,
 			Type: Type{
 				Tag:     Dictionary,
 				Content: &t,
@@ -282,13 +294,12 @@ func assemble_blocks(path []string, bs *schema.BlockSchema, all_labels []Label, 
 	} else {
 		obj := map[string]Attribute{}
 		for k, v := range l.possible_values {
-			obj[k] = assemble_blocks(append(path, k), bs, all_labels, labels[1:], append(accumulated_bodies, &v))
+			obj[k] = assemble_blocks(computed_fields, append(path, k), bs, all_labels, labels[1:], append(accumulated_bodies, &v))
 		}
 		return Attribute{
 			Description: bs.Description.Value,
 			// TODO(vkleen): compute these values properly
-			Optional:      true,
-			Interpolation: InterpolationStrategy{InterpolationType: Nickel},
+			Optional: true,
 			Type: Type{
 				Tag:    Object,
 				Object: &obj,
@@ -297,17 +308,16 @@ func assemble_blocks(path []string, bs *schema.BlockSchema, all_labels []Label, 
 	}
 }
 
-func convert_block(path []string, bs *schema.BlockSchema) Attribute {
+func convert_block(computed_fields *[]FieldDescriptor, path []string, bs *schema.BlockSchema) Attribute {
 	if bs.Body != nil && bs.Body.AnyAttribute != nil {
 		if bs.Body.Blocks != nil || bs.Body.Attributes != nil {
 			panic("Don't know how to handle AnyAttribute together with explicit attributes")
 		}
-		t := convert_attribute(bs.Body.AnyAttribute).Type
+		t := convert_attribute(computed_fields, append(path, "_"), bs.Body.AnyAttribute).Type
 		return Attribute{
 			Description: bs.Description.Value,
 			// TODO(vkleen): compute these values properly
-			Optional:      true,
-			Interpolation: InterpolationStrategy{InterpolationType: Nickel},
+			Optional: true,
 			Type: Type{
 				Tag:     Dictionary,
 				Content: &t,
@@ -321,25 +331,25 @@ func convert_block(path []string, bs *schema.BlockSchema) Attribute {
 	}
 
 	labels := classify_labels(bs)
-	return assemble_blocks(path, bs, labels, labels, bodies)
+	return assemble_blocks(computed_fields, path, bs, labels, labels, bodies)
 }
 
-func assemble_bodies(path []string, bs ...*schema.BodySchema) map[string]Attribute {
+func assemble_bodies(computed_fields *[]FieldDescriptor, path []string, bs ...*schema.BodySchema) map[string]Attribute {
 	schemas := []map[string]Attribute{}
 	for _, b := range bs {
-		schemas = append(schemas, assemble_body(path, b))
+		schemas = append(schemas, assemble_body(computed_fields, path, b))
 	}
 	return merge_objects(schemas...)
 }
 
-func assemble_body(path []string, bs *schema.BodySchema) map[string]Attribute {
+func assemble_body(computed_fields *[]FieldDescriptor, path []string, bs *schema.BodySchema) map[string]Attribute {
 	schema := make(map[string]Attribute)
 	for key, attr := range bs.Attributes {
-		schema[key] = convert_attribute(attr)
+		schema[key] = convert_attribute(computed_fields, append(path, key), attr)
 	}
 
 	for key, block := range bs.Blocks {
-		schema[key] = convert_block(append(path, key), block)
+		schema[key] = convert_block(computed_fields, append(path, key), block)
 	}
 
 	return schema
@@ -372,6 +382,17 @@ func main() {
 		panic(e)
 	}
 
-	json, _ := json.Marshal(assemble_body([]string{}, tf_schema))
+	computed_fields := []FieldDescriptor{}
+	assembled_schema := assemble_body(&computed_fields, []string{}, tf_schema)
+	json, err := json.Marshal(struct {
+		ComputedFields []FieldDescriptor    `json:"computed_fields"`
+		Schema         map[string]Attribute `json:"schema"`
+	}{
+		ComputedFields: computed_fields,
+		Schema:         assembled_schema,
+	})
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println(string(json))
 }
