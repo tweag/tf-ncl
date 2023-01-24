@@ -90,6 +90,8 @@ fn main() -> anyhow::Result<()> {
     let providers = get_providers(&opts)?;
     let go_schema = get_schema(&opts)?;
 
+    dbg!(&go_schema.computed_fields);
+
     let doc: RenderableSchema = go_schema.with_providers(providers).into();
 
     doc.render(&mut stdout())

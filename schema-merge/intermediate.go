@@ -5,42 +5,14 @@ import (
 )
 
 type Attribute struct {
-	Description   string                `json:"description"`
-	Optional      bool                  `json:"optional"`
-	Interpolation InterpolationStrategy `json:"interpolation"`
-	Type          Type                  `json:"type"`
+	Description string `json:"description"`
+	Optional    bool   `json:"optional"`
+	Type        Type   `json:"type"`
 }
 
-type InterpolationTypeTag uint64
-
-const (
-	Nickel = iota
-	Terraform
-)
-
-type InterpolationStrategy struct {
-	InterpolationType InterpolationTypeTag `json:"type"`
-	Force             bool                 `json:"force"`
-}
-
-func (s InterpolationStrategy) MarshalJSON() (b []byte, e error) {
-	switch s.InterpolationType {
-	case Nickel:
-		return json.Marshal(struct {
-			Type string `json:"type"`
-		}{
-			Type: "nickel",
-		})
-	case Terraform:
-		return json.Marshal(struct {
-			Type  string `json:"type"`
-			Force bool   `json:"force"`
-		}{
-			Type:  "terraform",
-			Force: s.Force,
-		})
-	}
-	return json.Marshal("unknown")
+type FieldDescriptor struct {
+	Force bool     `json:"force"`
+	Path  []string `json:"path"`
 }
 
 type TypeTag uint64

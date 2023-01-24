@@ -2,33 +2,24 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
-pub struct Provider {
-    pub source: String,
-    pub version: String,
-    pub configuration: HashMap<String, Attribute>,
-    pub data_sources: HashMap<String, Attribute>,
-    pub resources: HashMap<String, Attribute>,
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GoSchema {
+    pub computed_fields: Vec<FieldDescriptor>,
+    pub schema: HashMap<String, Attribute>,
 }
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct GoSchema(pub HashMap<String, Attribute>);
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Attribute {
     pub description: Option<String>,
     pub optional: bool,
-    pub interpolation: InterpolationStrategy,
     #[serde(rename = "type")]
     pub type_: Type,
 }
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize)]
-#[serde(tag = "type")]
-#[serde(rename_all = "lowercase")]
-pub enum InterpolationStrategy {
-    Nickel,
-    Terraform { force: bool },
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FieldDescriptor {
+    pub force: bool,
+    pub path: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
