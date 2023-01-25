@@ -64,6 +64,17 @@ impl<A> Field<A> {
         self
     }
 
+    pub fn contracts<I>(mut self, contracts: I) -> Self
+    where
+        I: IntoIterator<Item = Contract>,
+    {
+        self.metadata = self.metadata.or_else(|| Some(Default::default()));
+        if let Some(mv) = self.metadata.as_mut() {
+            mv.contracts.extend(contracts)
+        }
+        self
+    }
+
     pub fn types(mut self, t: impl Into<Contract>) -> Self {
         self.metadata = Some(MetaValue {
             types: Some(t.into()),

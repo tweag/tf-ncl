@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct GoSchema {
     pub computed_fields: Vec<FieldDescriptor>,
     pub schema: HashMap<String, Attribute>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Attribute {
     pub description: Option<String>,
     pub optional: bool,
@@ -17,13 +17,13 @@ pub struct Attribute {
     pub type_: Type,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct FieldDescriptor {
     pub force: bool,
     pub path: Vec<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub enum Type {
     Dynamic,
     String,
@@ -35,7 +35,18 @@ pub enum Type {
         content: Box<Type>,
     },
     Object(HashMap<String, Attribute>),
-    Dictionary(Box<Type>),
+    #[serde(deserialize_with = "transparent")]
+    Dictionary {
+        inner: Box<Type>,
+        computed_fields: Vec<FieldDescriptor>,
+    },
+}
+
+fn transparent<'de, D>(deser: D) -> Result<(Box<Type>, Vec<FieldDescriptor>), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    <Box<Type> as Deserialize>::deserialize(deser).map(|inner| (inner, vec![]))
 }
 
 #[derive(Deserialize, Debug)]
@@ -64,6 +75,67 @@ impl<T> IntoWithProviders for T {
         WithProviders {
             providers,
             data: self,
+        }
+    }
+}
+
+fn attribute_at_path<'a>(
+    schema: &'a mut HashMap<String, Attribute>,
+    path: &[String],
+) -> Option<&'a mut Attribute> {
+    let mut obj = schema;
+    for p in path.split_last().map(|x| x.1).unwrap_or(&[]) {
+        obj = obj.get_mut(p).and_then(|attr| match &mut attr.type_ {
+            Type::Object(obj) => Some(obj),
+            _ => None,
+        })?;
+    }
+    obj.get_mut(path.last()?)
+}
+
+impl FieldDescriptor {
+    fn split_at_first_wildcard(&self) -> (&[String], &[String]) {
+        let first_wildcard = self
+            .path
+            .iter()
+            .position(|x| x == "_")
+            .unwrap_or(self.path.len());
+        self.path.split_at(first_wildcard)
+    }
+
+    fn push_down(self, schema: &mut HashMap<String, Attribute>) -> Option<Self> {
+        let (prefix, rest) = self.split_at_first_wildcard();
+        let Some(attr) = attribute_at_path(schema, prefix) else {
+            return Some(self)
+        };
+        match &mut attr.type_ {
+            Type::Dictionary {
+                inner: _,
+                computed_fields,
+            } => {
+                computed_fields.push(FieldDescriptor {
+                    path: rest.into(),
+                    ..self
+                });
+                None
+            }
+            _ => panic!("Wildcard in field path doesn't correspond to dictionary"),
+        }
+    }
+}
+
+impl GoSchema {
+    pub fn push_down_computed_fields(self) -> Self {
+        let Self {
+            computed_fields,
+            mut schema,
+        } = self;
+        Self {
+            computed_fields: computed_fields
+                .into_iter()
+                .filter_map(|f| f.push_down(&mut schema))
+                .collect(),
+            schema,
         }
     }
 }
