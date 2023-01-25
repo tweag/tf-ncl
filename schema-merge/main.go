@@ -110,7 +110,7 @@ func extract_type(computed_fields *[]FieldDescriptor, path []string, ecs schema.
 	return Type{Tag: Dynamic}
 }
 
-func extract_optional(computed_fields *[]FieldDescriptor, path []string, as *schema.AttributeSchema) bool {
+func extract_optional_computed(computed_fields *[]FieldDescriptor, path []string, as *schema.AttributeSchema) (bool, bool) {
 	optional := as.IsOptional
 	// Terraform treats `id` fields specially
 	if path[len(path)-1] == "id" {
@@ -119,9 +119,9 @@ func extract_optional(computed_fields *[]FieldDescriptor, path []string, as *sch
 
 	switch {
 	case optional && !as.IsRequired && !as.IsComputed:
-		return true
+		return true, false
 	case !optional && as.IsRequired && !as.IsComputed:
-		return false
+		return false, false
 	case !optional && !as.IsRequired && as.IsComputed:
 		// TODO(vkleen) Once interpolation of computed fields is properly handled,
 		// these fields should no longer be optional
@@ -129,7 +129,7 @@ func extract_optional(computed_fields *[]FieldDescriptor, path []string, as *sch
 			Force: true,
 			Path:  append([]string(nil), path...),
 		})
-		return true
+		return false, true
 	case optional && !as.IsRequired && as.IsComputed:
 		// TODO(vkleen) Once interpolation of computed fields is properly handled,
 		// these fields should no longer be optional
@@ -137,16 +137,17 @@ func extract_optional(computed_fields *[]FieldDescriptor, path []string, as *sch
 			Force: false,
 			Path:  append([]string(nil), path...),
 		})
-		return true
+		return true, true
 	}
-	return true
+	return true, false
 }
 
 func convert_attribute(computed_fields *[]FieldDescriptor, path []string, as *schema.AttributeSchema) Attribute {
-	o := extract_optional(computed_fields, path, as)
+	o, c := extract_optional_computed(computed_fields, path, as)
 	attr := Attribute{
 		Description: as.Description.Value,
 		Optional:    o,
+		Computed:    c,
 		Type:        extract_type(computed_fields, path, as.Expr),
 	}
 	return attr
@@ -247,6 +248,7 @@ func wrap_block_type(path []string, labels []Label, bs *schema.BlockSchema, attr
 		return Attribute{
 			Description: attr.Description,
 			Optional:    attr.Optional,
+			Computed:    attr.Computed,
 			Type: Type{
 				Tag:      List,
 				MinItems: &bs.MinItems,
@@ -273,6 +275,7 @@ func assemble_blocks(computed_fields *[]FieldDescriptor, path []string, bs *sche
 			Description: description,
 			// TODO(vkleen): compute these values properly
 			Optional: true,
+			Computed: false,
 			Type: Type{
 				Tag:    Object,
 				Object: &obj,
@@ -284,8 +287,8 @@ func assemble_blocks(computed_fields *[]FieldDescriptor, path []string, bs *sche
 		t := assemble_blocks(computed_fields, append(path, "_"), bs, all_labels, labels[1:], accumulated_bodies).Type
 		return Attribute{
 			Description: bs.Description.Value,
-			// TODO(vkleen): compute these values properly
-			Optional: true,
+			Optional:    true,
+			Computed:    false,
 			Type: Type{
 				Tag:     Dictionary,
 				Content: &t,
@@ -300,6 +303,7 @@ func assemble_blocks(computed_fields *[]FieldDescriptor, path []string, bs *sche
 			Description: bs.Description.Value,
 			// TODO(vkleen): compute these values properly
 			Optional: true,
+			Computed: false,
 			Type: Type{
 				Tag:    Object,
 				Object: &obj,
@@ -318,6 +322,7 @@ func convert_block(computed_fields *[]FieldDescriptor, path []string, bs *schema
 			Description: bs.Description.Value,
 			// TODO(vkleen): compute these values properly
 			Optional: true,
+			Computed: false,
 			Type: Type{
 				Tag:     Dictionary,
 				Content: &t,

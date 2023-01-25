@@ -7,6 +7,7 @@ import (
 type Attribute struct {
 	Description string `json:"description"`
 	Optional    bool   `json:"optional"`
+	Computed    bool   `json:"computed"`
 	Type        Type   `json:"type"`
 }
 
