@@ -104,10 +104,13 @@ impl AsNickelField for &intermediate::Attribute {
             computed,
             type_,
         } = self;
-        let field = field
-            .some_doc(description.clone())
-            .set_optional(*optional)
-            .contract(type_contract(type_.as_nickel_type()));
+        let (t, computed_fields) = type_.as_nickel_contracts();
+        let field = field.some_doc(description.clone()).set_optional(*optional);
+        let field = if let Some(fs) = computed_fields {
+            field.contracts([t, fs].map(type_contract))
+        } else {
+            field.contract(type_contract(t))
+        };
         if *computed {
             field
                 .priority(MergePriority::Bottom)
@@ -118,8 +121,8 @@ impl AsNickelField for &intermediate::Attribute {
     }
 }
 
-pub trait AsNickelType {
-    fn as_nickel_type(&self) -> Types;
+pub trait AsNickelContracts {
+    fn as_nickel_contracts(&self) -> (Types, Option<Types>);
 }
 
 enum PrimitiveType {
@@ -142,38 +145,64 @@ impl From<PrimitiveType> for RichTerm {
     }
 }
 
-impl AsNickelType for &intermediate::Type {
-    fn as_nickel_type(&self) -> Types {
+impl AsNickelContracts for &intermediate::Type {
+    fn as_nickel_contracts(&self) -> (Types, Option<Types>) {
         use intermediate::Type::*;
+        use nickel_lang::mk_app;
         fn tfvar(inner: impl Into<RichTerm>) -> Types {
-            use nickel_lang::mk_app;
             Types(TypeF::Flat(mk_app!(
                 Term::Var("TfNcl.Tf".into()),
                 inner.into()
             )))
         }
 
+        fn primitive(inner: PrimitiveType) -> (Types, Option<Types>) {
+            (tfvar(inner), None)
+        }
+
         match self {
-            Dynamic => tfvar(PrimitiveType::Dyn),
-            String => tfvar(PrimitiveType::Str),
-            Number => tfvar(PrimitiveType::Num),
-            Bool => tfvar(PrimitiveType::Bool),
+            Dynamic => primitive(PrimitiveType::Dyn),
+            String => primitive(PrimitiveType::Str),
+            Number => primitive(PrimitiveType::Num),
+            Bool => primitive(PrimitiveType::Bool),
             //TODO(vkleen): min and max should be represented as a contract
             //TODO(vkleen): tfvar wrapping is unclear
             List {
                 min: _,
                 max: _,
                 content,
-            } => Types(TypeF::Array(Box::new(content.as_ref().as_nickel_type()))),
-            Object(fields) => Types(TypeF::Flat(
-                builder::Record::from(
-                    fields
-                        .iter()
-                        .map(|(k, v)| v.as_nickel_field(builder::Field::name(k))),
+            } => (
+                Types(TypeF::Array(Box::new(
+                    content.as_ref().as_nickel_contracts().0,
+                ))),
+                None,
+            ),
+            Object(fields) => (
+                Types(TypeF::Flat(
+                    builder::Record::from(
+                        fields
+                            .iter()
+                            .map(|(k, v)| v.as_nickel_field(builder::Field::name(k))),
+                    )
+                    .into(),
+                )),
+                None,
+            ),
+            Dictionary {
+                inner,
+                computed_fields,
+            } => {
+                let inner_contract = Types(TypeF::Dict(Box::new(
+                    inner.as_ref().as_nickel_contracts().0,
+                )));
+                (
+                    inner_contract,
+                    Some(Types(TypeF::Flat(mk_app!(
+                        Term::Var("TfNcl.ComputedFields".into()),
+                        computed_fields.as_nickel()
+                    )))),
                 )
-                .into(),
-            )),
-            Dictionary(inner) => Types(TypeF::Dict(Box::new(inner.as_ref().as_nickel_type()))),
+            }
         }
     }
 }

@@ -96,7 +96,7 @@ fn main() -> anyhow::Result<()> {
     let opts = Args::parse();
 
     let providers = get_providers(&opts)?;
-    let go_schema = get_schema(&opts)?;
+    let go_schema = get_schema(&opts)?.push_down_computed_fields();
 
     let doc: RenderableSchema = go_schema.with_providers(providers).into();
 
