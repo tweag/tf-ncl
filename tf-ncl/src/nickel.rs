@@ -1,5 +1,8 @@
-use crate::intermediate::{self, GoSchema, Providers, WithProviders};
+use std::rc::Rc;
+
+use crate::intermediate::{self, FieldDescriptor, GoSchema, Providers, WithProviders};
 use crate::nickel_builder as builder;
+use nickel_lang::term::array::{Array, ArrayAttrs};
 use nickel_lang::term::{Contract, MergePriority, RichTerm, Term};
 use nickel_lang::types::{TypeF, Types};
 
@@ -40,6 +43,49 @@ impl AsNickel for Providers {
     }
 }
 
+impl AsNickel for Vec<FieldDescriptor> {
+    fn as_nickel(&self) -> RichTerm {
+        Term::Array(
+            Array::new(
+                self.iter()
+                    .map(|x| x.as_nickel())
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice()
+                    .into(),
+            ),
+            ArrayAttrs::new(),
+        )
+        .into()
+    }
+}
+
+impl AsNickel for FieldDescriptor {
+    fn as_nickel(&self) -> RichTerm {
+        use builder::*;
+
+        let priority = Term::Enum(if self.force {
+            "Force".into()
+        } else {
+            "Default".into()
+        });
+        Record::new()
+            .field("prio")
+            .value(priority)
+            .field("path")
+            .value(Term::Array(
+                Array::new(Rc::from(
+                    self.path
+                        .iter()
+                        .map(|s| RichTerm::from(Term::Str(s.clone())))
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                )),
+                ArrayAttrs::default(),
+            ))
+            .build()
+    }
+}
+
 pub trait AsNickelField {
     fn as_nickel_field(
         &self,
@@ -55,13 +101,20 @@ impl AsNickelField for &intermediate::Attribute {
         let intermediate::Attribute {
             description,
             optional,
+            computed,
             type_,
         } = self;
-        field
+        let field = field
             .some_doc(description.clone())
             .set_optional(*optional)
-            .contract(type_contract(type_.as_nickel_type()))
-            .no_value()
+            .contract(type_contract(type_.as_nickel_type()));
+        if *computed {
+            field
+                .priority(MergePriority::Bottom)
+                .value(Term::Var("TfNcl.undefined".into()))
+        } else {
+            field.no_value()
+        }
     }
 }
 

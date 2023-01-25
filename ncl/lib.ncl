@@ -121,7 +121,6 @@
            && builtin.is_record r."%{field}"
            && has_defined_field_path (array.tail path) r."%{field}",
 
-
   FieldDescriptor = {
     prio | [| `Default, `Force |],
     path | Array Str,
@@ -175,9 +174,23 @@
       then record & field.record
       else record,
 
-  computed_fields | Array FieldDescriptor -> Dyn -> Dyn
-    = fun fields r => fields |> array.map (elaborate_field r) |> array.flatten |> array.foldl merge_elaborated r,
+  last : forall a. Array a -> a
+    = fun arr => array.elem_at (array.length arr - 1) arr,
+
+  foldl' : forall a b. (a -> b -> a) -> a -> Array b -> a
+    = fun f acc l =>
+        let length = array.length l in
+        if length == 0 then acc
+        else
+          let rec
+            out = [ acc ] @ array.generate
+              (fun i => f (array.elem_at i out) (array.elem_at i l))
+              length
+          in array.elem_at length out,
+
+  flatten' : forall a. Array (Array a) -> Array a
+    = fun l => foldl' (fun acc l => acc @ l) [] l,
 
   ComputedFields | Array FieldDescriptor -> Dyn -> Dyn -> Dyn
-    = fun fields _l r => computed_fields fields r,
+    = fun fields _l r => fields |> array.map (elaborate_field r) |> flatten' |> foldl' merge_elaborated r,
 }

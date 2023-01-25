@@ -12,6 +12,7 @@ pub struct GoSchema {
 pub struct Attribute {
     pub description: Option<String>,
     pub optional: bool,
+    pub computed: bool,
     #[serde(rename = "type")]
     pub type_: Type,
 }
