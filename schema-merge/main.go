@@ -110,11 +110,16 @@ func extract_type(computed_fields *[]FieldDescriptor, path []string, ecs schema.
 	return Type{Tag: Dynamic}
 }
 
-func extract_optional_computed(computed_fields *[]FieldDescriptor, path []string, as *schema.AttributeSchema) (bool, bool) {
+func extract_optional_computed(computed_fields *[]FieldDescriptor, path []string, t Type, as *schema.AttributeSchema) (bool, bool) {
 	optional := as.IsOptional
 	// Terraform treats `id` fields specially
 	if path[len(path)-1] == "id" {
 		optional = false
+	}
+
+	// FIXME(vkleen) Mark lists as "not computed" because of limitations in the Nickel contracts
+	if t.Tag == List {
+		return true, false
 	}
 
 	switch {
@@ -123,16 +128,12 @@ func extract_optional_computed(computed_fields *[]FieldDescriptor, path []string
 	case !optional && as.IsRequired && !as.IsComputed:
 		return false, false
 	case !optional && !as.IsRequired && as.IsComputed:
-		// TODO(vkleen) Once interpolation of computed fields is properly handled,
-		// these fields should no longer be optional
 		*computed_fields = append(*computed_fields, FieldDescriptor{
 			Force: true,
 			Path:  append([]string(nil), path...),
 		})
 		return false, true
 	case optional && !as.IsRequired && as.IsComputed:
-		// TODO(vkleen) Once interpolation of computed fields is properly handled,
-		// these fields should no longer be optional
 		*computed_fields = append(*computed_fields, FieldDescriptor{
 			Force: false,
 			Path:  append([]string(nil), path...),
@@ -143,12 +144,14 @@ func extract_optional_computed(computed_fields *[]FieldDescriptor, path []string
 }
 
 func convert_attribute(computed_fields *[]FieldDescriptor, path []string, as *schema.AttributeSchema) Attribute {
-	o, c := extract_optional_computed(computed_fields, path, as)
+	t := extract_type(computed_fields, path, as.Expr)
+	o, c := extract_optional_computed(computed_fields, path, t, as)
+
 	attr := Attribute{
 		Description: as.Description.Value,
 		Optional:    o,
 		Computed:    c,
-		Type:        extract_type(computed_fields, path, as.Expr),
+		Type:        t,
 	}
 	return attr
 }

@@ -6,7 +6,7 @@
       result.action |> match {
         `KeepStop => record.insert field_name result.value acc,
         `Continue => 
-          let new_value : Dyn = 
+          let new_value = 
             if builtin.is_record result.value then
               (deep_filter_map_prefix prefix f (result.value | {_ : Dyn})) | Dyn
             else
@@ -124,6 +124,7 @@
   FieldDescriptor = {
     prio | [| `Default, `Force |],
     path | Array Str,
+    ..
   },
 
   ElaboratedField = {
@@ -132,14 +133,24 @@
     record | {_: Dyn},
   },
 
+  mergeable | {_: Dyn} -> FieldDescriptor -> Bool
+    = fun r field => ! (has_defined_field_path field.path r && field.prio == `Default),
+
   elaborate_field | {_: Dyn} -> FieldDescriptor -> Array ElaboratedField
-    = let { candidates, filter_existing, elaborate, .. } = {
+    = let { candidates, filter_mergeable, elaborate, .. } = {
       candidates | {_: Dyn}  -> Array Str -> FieldDescriptor -> Array FieldDescriptor
         = fun r prefix field => 
           let head = array.head field.path in
           let tail = array.tail field.path in
             if head == "_"
-            then record.fields r |> array.map (fun name => candidates r prefix { prio = field.prio, path = [name] @ tail }) |> array.flatten
+            then
+              record.fields r |>
+              array.map (fun name =>
+                candidates r prefix {
+                  prio = field.prio,
+                  path = [name] @ tail
+                }) |>
+              array.flatten
             else if array.length field.path == 1
               then
                 [{
@@ -150,8 +161,8 @@
                 let r' = if record.has_field head r then r."%{head}" else {}
                 in candidates r' (prefix @ [head]) { prio = field.prio, path = tail },
       
-      filter_existing | {_: Dyn} -> Array FieldDescriptor -> Array FieldDescriptor
-        = fun r => array.filter (fun field => ! (has_defined_field_path field.path r && field.prio == `Default)),
+      filter_mergeable | {_: Dyn} -> Array FieldDescriptor -> Array FieldDescriptor
+        = fun r => array.filter (fun field => mergeable r field),
 
       elaborate | FieldDescriptor -> ElaboratedField
         = fun field => {
@@ -164,33 +175,17 @@
         = fun acc field =>
           let head = array.head acc
           in if array.length acc > 1
-          then { "%{head}" = elaborated_record (array.tail acc) field }
-          else { "%{head}" | force = provider_computed field.path },
-    } in fun r field => candidates r [] field |> filter_existing r |> array.map elaborate,
+          then { "%{head}" = elaborated_record (array.tail acc) field, .. }
+          else { "%{head}" | force = provider_computed field.path, .. },
+    } in fun r field => candidates r [] field |> filter_mergeable r |> array.map elaborate,
 
   merge_elaborated | {_: Dyn} -> ElaboratedField -> {_: Dyn}
     = fun record field =>
-      if field.prio == `Force || ! has_defined_field_path field.path record
+      if mergeable record field
       then record & field.record
       else record,
 
-  last : forall a. Array a -> a
-    = fun arr => array.elem_at (array.length arr - 1) arr,
-
-  foldl' : forall a b. (a -> b -> a) -> a -> Array b -> a
-    = fun f acc l =>
-        let length = array.length l in
-        if length == 0 then acc
-        else
-          let rec
-            out = [ acc ] @ array.generate
-              (fun i => f (array.elem_at i out) (array.elem_at i l))
-              length
-          in array.elem_at length out,
-
-  flatten' : forall a. Array (Array a) -> Array a
-    = fun l => foldl' (fun acc l => acc @ l) [] l,
 
   ComputedFields | Array FieldDescriptor -> Dyn -> Dyn -> Dyn
-    = fun fields _l r => fields |> array.map (elaborate_field r) |> flatten' |> foldl' merge_elaborated r,
+    = fun fields _l r => fields |> array.map (elaborate_field r) |> array.flatten |> array.foldl merge_elaborated r,
 }
