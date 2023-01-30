@@ -136,7 +136,7 @@
   mergeable | {_: Dyn} -> FieldDescriptor -> Bool
     = fun r field => ! (has_defined_field_path field.path r && field.prio == `Default),
 
-  elaborate_field | {_: Dyn} -> FieldDescriptor -> Array ElaboratedField
+  elaborate_field | Array Str -> {_: Dyn} -> FieldDescriptor -> Array ElaboratedField
     = let { candidates, filter_mergeable, elaborate, .. } = {
       candidates | {_: Dyn}  -> Array Str -> FieldDescriptor -> Array FieldDescriptor
         = fun r prefix field => 
@@ -164,20 +164,20 @@
       filter_mergeable | {_: Dyn} -> Array FieldDescriptor -> Array FieldDescriptor
         = fun r => array.filter (fun field => mergeable r field),
 
-      elaborate | FieldDescriptor -> ElaboratedField
-        = fun field => {
+      elaborate | Array Str -> FieldDescriptor -> ElaboratedField
+        = fun prefix field => {
           prio = field.prio,
           path = field.path,
-          record = elaborated_record field.path field
+          record = elaborated_record prefix field.path field
         },
 
-      elaborated_record | Array Str -> FieldDescriptor -> {_: Dyn}
-        = fun acc field =>
+      elaborated_record | Array Str -> Array Str -> FieldDescriptor -> {_: Dyn}
+        = fun prefix acc field =>
           let head = array.head acc
           in if array.length acc > 1
-          then { "%{head}" = elaborated_record (array.tail acc) field, .. }
-          else { "%{head}" | force = provider_computed field.path, .. },
-    } in fun r field => candidates r [] field |> filter_mergeable r |> array.map elaborate,
+          then { "%{head}" = elaborated_record prefix (array.tail acc) field, .. }
+          else { "%{head}" | force = provider_computed (prefix @ field.path), .. },
+    } in fun prefix r field => candidates r [] field |> filter_mergeable r |> array.map (elaborate prefix),
 
   merge_elaborated | {_: Dyn} -> ElaboratedField -> {_: Dyn}
     = fun record field =>
@@ -185,7 +185,6 @@
       then record & field.record
       else record,
 
-
-  ComputedFields | Array FieldDescriptor -> Dyn -> Dyn -> Dyn
-    = fun fields _l r => fields |> array.map (elaborate_field r) |> array.flatten |> array.foldl merge_elaborated r,
+  ComputedFields | Array Str -> Array FieldDescriptor -> Dyn -> Dyn -> Dyn
+    = fun prefix fields _l r => fields |> array.map (elaborate_field prefix r) |> array.flatten |> array.foldl merge_elaborated r,
 }

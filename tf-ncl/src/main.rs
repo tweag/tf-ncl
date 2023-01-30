@@ -38,7 +38,6 @@ fn get_schema(opts: &Args) -> anyhow::Result<GoSchema> {
 struct RenderableSchema<'a> {
     schema: BoxDoc<'a>,
     providers: BoxDoc<'a>,
-    computed_fields: BoxDoc<'a>,
 }
 
 impl<'a> RenderableSchema<'a> {
@@ -57,13 +56,12 @@ impl<'a> RenderableSchema<'a> {
     TfNcl = {tfncl_lib} & {{
         # The contract annotation can't be used until nickel#1056 is resolved
         mkConfig #| Schema -> {{_: Dyn}}
-                 = fun v => (v | TfNcl.ComputedFields ({computed_fields})) |> TfNcl.resolve_provider_computed,
+                 = TfNcl.resolve_provider_computed,
     }},
     required_providers = {required_providers}
 }}",
             schema = Display(&self.schema),
             required_providers = Display(&self.providers),
-            computed_fields = Display(&self.computed_fields),
         )?;
         Ok(())
     }
@@ -74,12 +72,6 @@ impl<'a> From<WithProviders<GoSchema>> for RenderableSchema<'a> {
         RenderableSchema {
             schema: s.as_nickel().pretty(&BoxAllocator).into_doc(),
             providers: s.providers.as_nickel().pretty(&BoxAllocator).into_doc(),
-            computed_fields: s
-                .data
-                .computed_fields
-                .as_nickel()
-                .pretty(&BoxAllocator)
-                .into_doc(),
         }
     }
 }
