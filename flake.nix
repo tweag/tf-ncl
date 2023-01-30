@@ -147,13 +147,15 @@
           (name: p: generateSchema (_: { ${name} = p; }))
           terraformProviders;
 
-        templates = {
+        templates = rec {
           hello-tf = {
             path = ./examples/hello-tf;
             description = ''
               A minimal Nix flake containing a development shell for terraform with only the `null` provider.
             '';
           };
+
+          default = hello-tf;
         };
 
         devShells.default = pkgs.mkShell {
