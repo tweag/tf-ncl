@@ -43,6 +43,22 @@ impl AsNickel for Providers {
     }
 }
 
+impl AsNickel for Vec<String> {
+    fn as_nickel(&self) -> RichTerm {
+        Term::Array(
+            Array::new(
+                self.iter()
+                    .map(|s| RichTerm::from(Term::Str(s.clone())))
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice()
+                    .into(),
+            ),
+            ArrayAttrs::new(),
+        )
+        .into()
+    }
+}
+
 impl AsNickel for Vec<FieldDescriptor> {
     fn as_nickel(&self) -> RichTerm {
         Term::Array(
@@ -190,6 +206,7 @@ impl AsNickelContracts for &intermediate::Type {
             ),
             Dictionary {
                 inner,
+                prefix,
                 computed_fields,
             } => {
                 let inner_contract = Types(TypeF::Dict(Box::new(
@@ -199,6 +216,7 @@ impl AsNickelContracts for &intermediate::Type {
                     inner_contract,
                     Some(Types(TypeF::Flat(mk_app!(
                         Term::Var("TfNcl.ComputedFields".into()),
+                        prefix.as_nickel(),
                         computed_fields.as_nickel()
                     )))),
                 )

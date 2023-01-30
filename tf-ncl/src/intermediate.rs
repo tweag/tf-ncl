@@ -38,15 +38,18 @@ pub enum Type {
     #[serde(deserialize_with = "transparent")]
     Dictionary {
         inner: Box<Type>,
+        prefix: Vec<String>,
         computed_fields: Vec<FieldDescriptor>,
     },
 }
 
-fn transparent<'de, D>(deser: D) -> Result<(Box<Type>, Vec<FieldDescriptor>), D::Error>
+// The very complex return type is required to make serde happy.
+#[allow(clippy::type_complexity)]
+fn transparent<'de, D>(deser: D) -> Result<(Box<Type>, Vec<String>, Vec<FieldDescriptor>), D::Error>
 where
     D: Deserializer<'de>,
 {
-    <Box<Type> as Deserialize>::deserialize(deser).map(|inner| (inner, vec![]))
+    <Box<Type> as Deserialize>::deserialize(deser).map(|inner| (inner, vec![], vec![]))
 }
 
 #[derive(Deserialize, Debug)]
@@ -111,8 +114,14 @@ impl FieldDescriptor {
         match &mut attr.type_ {
             Type::Dictionary {
                 inner: _,
+                prefix: prev_prefix,
                 computed_fields,
             } => {
+                if prev_prefix.is_empty() {
+                    *prev_prefix = prefix.to_vec();
+                } else if prev_prefix != prefix {
+                    return Some(self);
+                }
                 computed_fields.push(FieldDescriptor {
                     path: rest.into(),
                     ..self
