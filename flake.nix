@@ -147,6 +147,15 @@
           (name: p: generateSchema (_: { ${name} = p; }))
           terraformProviders;
 
+        templates = {
+          hello-tf = {
+            path = ./examples/hello-tf;
+            description = ''
+              A minimal Nix flake containing a development shell for terraform with only the `null` provider.
+            '';
+          };
+        };
+
         devShells.default = pkgs.mkShell {
           inputsFrom = builtins.attrValues self.checks;
           buildInputs = with pkgs; [
