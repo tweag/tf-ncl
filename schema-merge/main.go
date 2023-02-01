@@ -93,7 +93,8 @@ func extract_type(computed_fields *[]FieldDescriptor, path []string, ecs schema.
 		return *t
 	}
 
-	if is_list, t := has_list_type(computed_fields, path, ecs); is_list {
+	// FIXME(vkleen): the Nickel contracts don't react well to lists in the path; if we're going to emit an Array contract, we need to censor computed fields below it for now
+	if is_list, t := has_list_type(&[]FieldDescriptor{}, path, ecs); is_list {
 		return *t
 	}
 
@@ -110,29 +111,26 @@ func extract_type(computed_fields *[]FieldDescriptor, path []string, ecs schema.
 	return Type{Tag: Dynamic}
 }
 
-func extract_optional_computed(computed_fields *[]FieldDescriptor, path []string, t Type, as *schema.AttributeSchema) (bool, bool) {
+func extract_optional_computed(computed_fields *[]FieldDescriptor, path []string, as *schema.AttributeSchema) (bool, bool) {
 	optional := as.IsOptional
 	// Terraform treats `id` fields specially
 	if path[len(path)-1] == "id" {
 		optional = false
 	}
 
-	// FIXME(vkleen) Mark lists as "not computed" because of limitations in the Nickel contracts
-	if t.Tag == List {
-		return true, false
-	}
-
 	switch {
 	case optional && !as.IsRequired && !as.IsComputed:
 		return true, false
 	case !optional && as.IsRequired && !as.IsComputed:
-		return false, false
+		// FIXME(vkleen): optional fields together with computed fields in the same record break the Nickel contracts
+		return true, false
 	case !optional && !as.IsRequired && as.IsComputed:
 		*computed_fields = append(*computed_fields, FieldDescriptor{
 			Force: true,
 			Path:  append([]string(nil), path...),
 		})
-		return false, true
+		// FIXME(vkleen): optional fields together with computed fields in the same record break the Nickel contracts
+		return true, true
 	case optional && !as.IsRequired && as.IsComputed:
 		*computed_fields = append(*computed_fields, FieldDescriptor{
 			Force: false,
@@ -145,7 +143,14 @@ func extract_optional_computed(computed_fields *[]FieldDescriptor, path []string
 
 func convert_attribute(computed_fields *[]FieldDescriptor, path []string, as *schema.AttributeSchema) Attribute {
 	t := extract_type(computed_fields, path, as.Expr)
-	o, c := extract_optional_computed(computed_fields, path, t, as)
+
+	var o, c bool
+	// FIXME(vkleen) Mark lists as "not computed" because of limitations in the Nickel contracts
+	if t.Tag == List {
+		o, c = true, false
+	} else {
+		o, c = extract_optional_computed(computed_fields, path, as)
+	}
 
 	attr := Attribute{
 		Description: as.Description.Value,
@@ -222,7 +227,7 @@ func starts_with(pattern []string, path []string) bool {
 	return true
 }
 
-func wrap_block_type(path []string, labels []Label, bs *schema.BlockSchema, attr Attribute) Attribute {
+func fixup_block_type(path []string, labels []Label, bs *schema.BlockSchema) schema.BlockType {
 	t := bs.Type
 
 	if len(path) == 1 && path[0] == "terraform" {
@@ -244,6 +249,10 @@ func wrap_block_type(path []string, labels []Label, bs *schema.BlockSchema, attr
 		t = schema.BlockTypeObject
 	}
 
+	return t
+}
+
+func wrap_block_type(path []string, labels []Label, bs *schema.BlockSchema, t schema.BlockType, attr Attribute) Attribute {
 	switch t {
 	case schema.BlockTypeObject:
 		return attr
@@ -266,7 +275,16 @@ func wrap_block_type(path []string, labels []Label, bs *schema.BlockSchema, attr
 
 func assemble_blocks(computed_fields *[]FieldDescriptor, path []string, bs *schema.BlockSchema, all_labels []Label, labels []Label, accumulated_bodies []*schema.BodySchema) Attribute {
 	if len(labels) == 0 {
-		obj := assemble_bodies(computed_fields, path, accumulated_bodies...)
+		t := fixup_block_type(path, all_labels, bs)
+
+		// FIXME(vkleen): the Nickel contracts don't react well to lists in the path; if we're going to emit an Array contract, we need to censor computed fields below it for now
+		var obj map[string]Attribute
+		if t == schema.BlockTypeList || t == schema.BlockTypeSet {
+			obj = assemble_bodies(&[]FieldDescriptor{}, path, accumulated_bodies...)
+		} else {
+			obj = assemble_bodies(computed_fields, path, accumulated_bodies...)
+		}
+
 		description := bs.Description.Value
 		if len(accumulated_bodies) > 0 {
 			last_description := accumulated_bodies[len(accumulated_bodies)-1].Description
@@ -274,7 +292,7 @@ func assemble_blocks(computed_fields *[]FieldDescriptor, path []string, bs *sche
 				description = last_description.Value
 			}
 		}
-		return wrap_block_type(path, all_labels, bs, Attribute{
+		return wrap_block_type(path, all_labels, bs, t, Attribute{
 			Description: description,
 			// TODO(vkleen): compute these values properly
 			Optional: true,

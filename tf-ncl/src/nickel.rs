@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::rc::Rc;
 
 use crate::intermediate::{self, FieldDescriptor, GoSchema, Providers, WithProviders};

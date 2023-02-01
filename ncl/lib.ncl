@@ -105,6 +105,20 @@
       then (resolve_field_action [] v).value
       else deep_filter_map go v,
 
+  remove_empty_records =
+    let {go, ..} = {
+      go_field : {_: Dyn} -> Str -> {_: Dyn} = fun r f =>
+        if ! builtin.is_record r."%{f}"
+        then r
+        else 
+          let new_field = go (r."%{f}" | {_: Dyn}) in
+            if new_field == {}
+            then record.remove f r
+            else record.update f (new_field | Dyn) r ,
+      go : {_: Dyn} -> {_: Dyn}
+        = fun r => r |> record.fields |> array.foldl go_field r,
+    } in go,
+
   is_defined_terraform_field_record | Dyn -> Bool
     = fun x => is_terraform_field_record x && x.terraform_field_type != `Undefined,
 
@@ -152,14 +166,14 @@
                 }) |>
               array.flatten
             else if array.length field.path == 1
-              then
-                [{
-                  prio = field.prio,
-                  path = prefix @ [head]
-                }]
-              else
-                let r' = if record.has_field head r then r."%{head}" else {}
-                in candidates r' (prefix @ [head]) { prio = field.prio, path = tail },
+            then
+              [{
+                prio = field.prio,
+                path = prefix @ [head]
+              }]
+            else
+              let r' = if record.has_field head r then r."%{head}" else {}
+              in candidates r' (prefix @ [head]) { prio = field.prio, path = tail },
       
       filter_mergeable | {_: Dyn} -> Array FieldDescriptor -> Array FieldDescriptor
         = fun r => array.filter (fun field => mergeable r field),
