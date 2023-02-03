@@ -25,7 +25,9 @@
       terraform-with-plugins = pkgs.terraform.withPlugins
         (p: pkgs.lib.attrValues (providers p));
 
-      inherit (inputs.nickel.packages.${system}) nickel lsp-nls;
+      inherit (inputs.nickel.packages.${system}) nickel;
+      # Hack around upstream structure
+      lsp-nls = inputs.nickel.checks.${system}.lsp-nls;
 
       ncl-schema = inputs.tf-ncl.generateSchema.${system} providers;
 
@@ -36,9 +38,17 @@
       # Outside of it, it can be called with `nix run .#terraform`.
       run-terraform = pkgs.writeShellScriptBin "terraform" ''
         set -e
+        if [[ "$#" -le 1 ]]; then
+          echo "terraform <ncl-file> ..."
+          exit 1
+        fi
+
+        ENTRY="''${1}"
+        shift
+
         ln -sf ${ncl-schema} schema.ncl
         ${nickel}/bin/nickel export > main.tf.json <<EOF
-          (import "./main.tf.ncl").renderable_config
+          (import "''${ENTRY}").renderable_config
         EOF
         ${terraform-with-plugins}/bin/terraform "$@"
       '';
