@@ -178,6 +178,13 @@
           '';
         };
 
+        github-users = rec {
+          path = ./examples/github-users;
+          description = ''
+            A toy example demonstrating how to transform a custom configuration schema into Terraform compatible resource specifications.
+          '';
+        };
+
         default = hello-tf;
       };
     };
