@@ -1,43 +1,49 @@
 # Terraform Configurations With Nickel
 
-This repository contains a tool `tf-ncl` for generating [Nickel](https://github.com/tweag/nickel) contracts out of [terraform](https://www.terraform.io) provider schemas.
+This repository contains tooling for generating [Nickel](https://github.com/tweag/nickel) contracts out of [Terraform](https://www.terraform.io) provider schemas.
+
+- Describe result
+- How to start a project with this
+- How to get schemas for nixpkgs terraform
 
 ## How?
-There is a collection of examples [here](https://github.com/tweag/tf-ncl-examples).
+Unfortunately, Terraform doesn't expose an interface for extracting a machine readable specification for the provider independent configuration it supports. Because of that this repository contains two tools and some glue written in Nix. Maybe this flowchart helps:
 
-Get a Nickel contract for the terraform providers `libvirt`, `random` and `external` the quick and dirty way:
-```
-nix build --impure --expr '(builtins.getFlake (builtins.toString ./.)).generateSchema.${builtins.currentSystem} (p: { inherit(p) libvirt random external; })'
+```mermaid
+flowchart LR
+    subgraph Nix
+        direction TB
+        providerSpec(Required Providers);
+        providerSchemasNix(Terraform provider schemas);
+        providerSpec -- generateJsonSchema --> providerSchemasNix;
+    end
+    
+    subgraph schema-merge
+        direction TB
+        providerSchemasGo(Terraform provider schemas);
+        merged-json-go(Merged JSON w/ Terraform builtins);
+        providerSchemasGo --> merged-json-go;
+    end
+
+    subgraph tf-ncl
+        direction TB
+        merged-json-rust(Merged JSON w/ Terraform builtins);
+        nickel-contracts(Monolithic Nickel contract)
+        merged-json-rust --> nickel-contracts;
+    end
+
+    Nix --> schema-merge
+    schema-merge --> tf-ncl
 ```
 
-The `tf-ncl` tool can also be called directly. First you need a file `providers.json` specifying the providers you want to use with their chosen local names, e.g.:
-```json
-{
-  "libvirt": {
-    "version": "0.7.0",
-    "source": "registry.terraform.io/dmacvicar/libvirt"
-  }
-}
+The entire process is packaged up in a Nix function `generateSchema` which is exposed as a flake output. It can be called manually, for example, to get a monolithic Nickel schema for the `aws`, `github` and `external` Terraform providers:
+```shell
+nix build --impure --expr '(builtins.getFlake "github:tweag/tf-ncl).generateSchema.${builtins.currentSystem}' (p: { inherit (p) aws github external; })
 ```
-Then you need to extract a schema from `terraform`. In a temporary directory, create a `main.tf` file containing only the `required_providers` stanza for `terraform`:
-```
-terraform {
-  required_providers {
-    libvirt = {
-      source = "registry.terraform.io/dmacvicar/libvirt"
-      version = "0.7.0"
-    }
-  }
-}
-```
-Then run
-```
-terraform init
-terraform providers schema -json > schema.json
-```
-Finally, generate the Nickel contracts with
-```
-tf-ncl providers.json schema.json
+
+All providers in `nixpkgs` are supported. If you only want to use a single provider, it's easier. For example to get only the `aws` provider schema as a Nickel contract, you can use
+```shell
+nix build github:tweag/tf-ncl#schemas.aws
 ```
 
 ## Status
