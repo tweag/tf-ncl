@@ -2,25 +2,62 @@
 
 This repository contains tooling for generating [Nickel](https://github.com/tweag/nickel) contracts out of [Terraform](https://www.terraform.io) provider schemas.
 
-- Describe result
-- How to start a project with this
-- How to get schemas for nixpkgs terraform
-
 ## Starting a Tf-Ncl configuration
 The easiest way to get started is to use the `hello-tf` flake template:
 ```shell
 nix flake init -t github:tweag/tf-ncl#hello-tf
 ```
-This will leave you with a `flake.nix` file containing some glue code for getting a Nickel contract out of `tf-ncl`, evaluating a Nickel configuration and calling Terraform. It's as easy as
+This will leave you with a `flake.nix` file containing some glue code for
+getting a Nickel contract out of `tf-ncl`, evaluating a Nickel configuration
+and calling Terraform. It's as easy as
 ```shell
 nix run .#terraform -- hello-tf.ncl init
 nix run .#terraform -- hello-tf.ncl apply
 ```
 
-Without Nix it's a bit more complicated. You will need to obtain the Nickel contract using the tools in this repository, see [](how).
+Without Nix it's a bit more complicated. You will need to obtain the Nickel
+contract using the tools in this repository. Take a look at [the working
+principle](how) for an overview of the process. The most involved step will be
+calling `schema-merge` with extracted Terraform provider schemas, see [the nix
+code](nix/terraform_schema.nix) for inspiration.
+
+Once you have a project set up, you can start writing Nickel configuration
+code. To quote from the `hello-tf` example:
+```nickel
+let Tf = import "./schema.ncl" in
+{
+  config.resource.null_resource.hello-world = {
+    provisioner.local-exec = [{
+      command = m%"
+        echo 'Hello, world!'
+      "%
+    }],
+  },
+} | Tf.Config
+```
+
+Anything goes! You just need to ensure that your Terraform configuration ends
+up in the toplevel attribute `config` and that your entire configuration
+evaluates to a record satisfying the `Tf.Config` contract.
+
+To actually turn the Nickel code into a JSON configuration file understood by
+Terraform, you need to call `nickel` to export the `renderable_config` toplevel
+attribute introduced by the `Tf.Config` contract:
+```shell
+nickel export <<<'(import "./<your-toplevel-file>.ncl").renderable_config'
+```
+This can be useful for inspecting the result of your code. But usually it will
+be easier to use the wrapper script for Terraform provided in the [`hello-tf`
+flake template](examples/hello-tf/flake.nix).
+
+For inspiration on what's possible with Nickel, take a look at [the
+examples](examples/). Happy hacking!
 
 ## How?
-Unfortunately, Terraform doesn't expose an interface for extracting a machine readable specification for the provider independent configuration it supports. Because of that this repository contains two tools and some glue written in Nix. Maybe this flowchart helps:
+Unfortunately, Terraform doesn't expose an interface for extracting a machine
+readable specification for the provider independent configuration it supports.
+Because of that this repository contains two tools and some glue written in
+Nix. Maybe this flowchart helps:
 
 ```mermaid
 flowchart LR
@@ -49,13 +86,19 @@ flowchart LR
     schema-merge --> tf-ncl
 ```
 
-The entire process is packaged up in a Nix function `generateSchema` which is exposed as a flake output. Also, to generate a Nickel contract for a single provider, there is a flake output `schemas`:
+The entire process is packaged up in a Nix function `generateSchema` which is
+exposed as a flake output. Also, to generate a Nickel contract for a single
+provider, there is a flake output `schemas`:
 ```shell
 nix build github:tweag/tf-ncl#schemas.aws
 ```
-All providers available in `nixpkgs` are supported. The `generateSchema` function can also be called manually. For example, to get a monolithic Nickel schema for the `aws`, `github` and `external` Terraform providers, you could use
+All providers available in `nixpkgs` are supported. The `generateSchema`
+function can also be called manually. For example, to get a monolithic Nickel
+schema for the `aws`, `github` and `external` Terraform providers, you could
+use
 ```shell
-nix build --impure --expr '(builtins.getFlake "github:tweag/tf-ncl).generateSchema.${builtins.currentSystem} (p: { inherit (p) aws github external; })'
+nix build --impure --expr \
+  '(builtins.getFlake "github:tweag/tf-ncl).generateSchema.${builtins.currentSystem} (p: { inherit (p) aws github external; })'
 ```
 
 ## Status
