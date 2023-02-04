@@ -1,6 +1,8 @@
 # Terraform Configurations With Nickel
 
-This repository contains tooling for generating [Nickel](https://github.com/tweag/nickel) contracts out of [Terraform](https://www.terraform.io) provider schemas.
+This repository contains tooling for generating
+[Nickel](https://github.com/tweag/nickel) contracts out of
+[Terraform](https://www.terraform.io) provider schemas.
 
 ## Starting a Tf-Ncl configuration
 The easiest way to get started is to use the `hello-tf` flake template:
