@@ -130,7 +130,8 @@
 
           packages = {
             default = packages.tf-ncl;
-            inherit tf-ncl schema-merge schemas;
+            inherit tf-ncl schema-merge;
+            terraform = pkgs.terraform;
           };
 
           inherit terraformProviders;
