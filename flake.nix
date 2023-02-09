@@ -132,7 +132,7 @@
             default = packages.tf-ncl;
             inherit tf-ncl schema-merge;
             terraform = pkgs.terraform;
-          };
+          } // lib.mapAttrs' (name: value: lib.nameValuePair "schema-${name}" value) schemas;
 
           inherit terraformProviders;
 
