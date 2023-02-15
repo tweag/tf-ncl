@@ -1,21 +1,21 @@
 {
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-unstable";
-    utils.url = github:numtide/flake-utils;
-    nickel.url = github:tweag/nickel;
-    import-cargo.url = github:edolstra/import-cargo;
+    utils.url = "github:numtide/flake-utils";
+    nickel.url = "github:tweag/nickel";
+    import-cargo.url = "github:edolstra/import-cargo";
     rust-overlay = {
-      url = github:oxalica/rust-overlay;
+      url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "utils";
     };
     crane = {
-      url = github:ipetkov/crane;
+      url = "github:ipetkov/crane";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     pre-commit-hooks = {
-      url = github:cachix/pre-commit-hooks.nix;
+      url = "github:cachix/pre-commit-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "utils";
     };
@@ -25,7 +25,7 @@
     extra-trusted-public-keys = [ "tweag-nickel.cachix.org-1:GIthuiK4LRgnW64ALYEoioVUQBWs0jexyoYVeLDBwRA=" ];
   };
   outputs = { self, utils, ... }@inputs:
-    utils.lib.eachSystem (with utils.lib.system; [ x86_64-linux aarch64-linux ])
+    utils.lib.eachDefaultSystem
       (system:
         let
           lastModifiedDate = self.lastModifiedDate or self.lastModified or "19700101";
@@ -179,7 +179,7 @@
           '';
         };
 
-        github-users = rec {
+        github-users = {
           path = ./examples/github-users;
           description = ''
             A toy example demonstrating how to transform a custom configuration schema into Terraform compatible resource specifications.
