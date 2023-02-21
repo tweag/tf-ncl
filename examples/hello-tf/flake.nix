@@ -6,6 +6,11 @@
     utils.url = github:numtide/flake-utils;
   };
 
+  nixConfig = {
+    extra-substituters = [ "https://tweag-nickel.cachix.org" ];
+    extra-trusted-public-keys = [ "tweag-nickel.cachix.org-1:GIthuiK4LRgnW64ALYEoioVUQBWs0jexyoYVeLDBwRA=" ];
+  };
+
   outputs = { self, utils, ... }@inputs: utils.lib.eachDefaultSystem (system:
     let
 
