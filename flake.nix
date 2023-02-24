@@ -77,7 +77,7 @@
 
             src = ./schema-merge;
 
-            vendorHash = "sha256-CtWf4H/TdxLQEdqjjybd5V8HGerC4VQQRyGilWkcmeY=";
+            vendorHash = "sha256-HQQQlOqjI4EAB1JNhFmjt9SQrF2wOh6C7hrR8So0dxs=";
           };
 
           pre-commit = inputs.pre-commit-hooks.lib.${system}.run {
