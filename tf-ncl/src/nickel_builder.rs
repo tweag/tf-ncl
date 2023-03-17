@@ -24,18 +24,20 @@ pub struct Field<RB> {
 
 pub struct Types(pub TypeF<Box<Types>, RecordRows, EnumRows>);
 
-impl From<Types> for TypeF<Box<Types>, RecordRows, EnumRows> {
-    fn from(value: Types) -> Self {
-        value.0
+impl From<TypeF<Box<Types>, RecordRows, EnumRows>> for Types {
+    fn from(value: TypeF<Box<Types>, RecordRows, EnumRows>) -> Self {
+        Types(value)
     }
 }
 
-fn add_positions(t: Types) -> types::Types {
-    types::Types {
-        types: t
-            .0
-            .map(|ty| Box::new(add_positions(*ty)), |rrow| rrow, |erow| erow),
-        pos: TermPos::None,
+impl From<Types> for types::Types {
+    fn from(t: Types) -> Self {
+        Self {
+            types: t
+                .0
+                .map(|ty| Box::new(Self::from(*ty)), |rrow| rrow, |erow| erow),
+            pos: TermPos::None,
+        }
     }
 }
 
@@ -67,12 +69,9 @@ impl<A> Field<A> {
         self
     }
 
-    pub fn contract(
-        mut self,
-        contract: impl Into<TypeF<Box<Types>, RecordRows, EnumRows>>,
-    ) -> Self {
+    pub fn contract(mut self, contract: impl Into<Types>) -> Self {
         self.metadata.annotation.contracts.push(LabeledType {
-            types: add_positions(Types(contract.into())),
+            types: types::Types::from(contract.into()),
             label: Default::default(),
         });
         self
@@ -86,15 +85,15 @@ impl<A> Field<A> {
             .annotation
             .contracts
             .extend(contracts.into_iter().map(|c| LabeledType {
-                types: add_positions(c),
+                types: c.into(),
                 label: Default::default(),
             }));
         self
     }
 
-    pub fn types(mut self, t: impl Into<TypeF<Box<Types>, RecordRows, EnumRows>>) -> Self {
+    pub fn types(mut self, t: impl Into<Types>) -> Self {
         self.metadata.annotation.types = Some(LabeledType {
-            types: add_positions(Types(t.into())),
+            types: types::Types::from(t.into()),
             label: Default::default(),
         });
         self
@@ -165,7 +164,6 @@ impl Field<Record> {
         self.record.fields.push((
             self.path,
             record::Field {
-                value: None,
                 metadata: self.metadata,
                 ..Default::default()
             },
@@ -200,13 +198,10 @@ fn elaborate_field_path(
     let fst = it.next().unwrap();
 
     let content = it.rev().fold(content, |acc, id| {
-        record::Field::from(RichTerm::new(
-            Term::Record(RecordData {
-                fields: [(id, acc)].into(),
-                ..Default::default()
-            }),
-            TermPos::None,
-        ))
+        record::Field::from(RichTerm::from(Term::Record(RecordData {
+            fields: [(id, acc)].into(),
+            ..Default::default()
+        })))
     });
 
     (FieldPathElem::Ident(fst), content)
@@ -310,7 +305,7 @@ mod tests {
     use super::*;
 
     fn term(t: Term) -> record::Field {
-        record::Field::from(RichTerm::new(t, TermPos::None))
+        record::Field::from(RichTerm::from(t))
     }
 
     #[test]

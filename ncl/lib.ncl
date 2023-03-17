@@ -187,10 +187,13 @@
 
       elaborated_record | Array String -> Array String -> FieldDescriptor -> {_: Dyn}
         = fun prefix acc field =>
-          let head = array.first acc
-          in if array.length acc > 1
-          then { "%{head}" = elaborated_record prefix (array.drop_first acc) field, .. }
-          else { "%{head}" | (fun l v => provider_computed (prefix @ field.path)) | default = {}, .. },
+          let head = array.first acc in
+          if array.length acc > 1
+          then
+            { "%{head}" = elaborated_record prefix (array.drop_first acc) field, .. }
+          else
+            let forcing_contract = fun l v => provider_computed (prefix @ field.path) in
+              { "%{head}" | forcing_contract | default = {}, .. },
     } in fun prefix r field => candidates r [] field |> filter_mergeable r |> array.map (elaborate prefix),
 
   merge_elaborated | {_: Dyn} -> ElaboratedField -> {_: Dyn}
