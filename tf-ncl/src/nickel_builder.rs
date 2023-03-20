@@ -1,10 +1,12 @@
 use nickel_lang::{
     identifier::Ident,
     parser::utils::{build_record, FieldPathElem},
+    position::TermPos,
     term::{
-        record::{RecordAttrs, RecordData},
-        Contract, MergePriority, MetaValue, RichTerm, Term,
+        record::{self, FieldMetadata, RecordAttrs, RecordData},
+        LabeledType, MergePriority, RichTerm, Term,
     },
+    types::{self, EnumRows, RecordRows, TypeF},
 };
 
 type StaticPath = Vec<Ident>;
@@ -17,77 +19,93 @@ pub struct Complete(Option<RichTerm>);
 pub struct Field<RB> {
     record: RB,
     path: StaticPath,
-    metadata: Option<MetaValue>,
+    metadata: FieldMetadata,
+}
+
+pub struct Types(pub TypeF<Box<Types>, RecordRows, EnumRows>);
+
+impl From<TypeF<Box<Types>, RecordRows, EnumRows>> for Types {
+    fn from(value: TypeF<Box<Types>, RecordRows, EnumRows>) -> Self {
+        Types(value)
+    }
+}
+
+impl From<Types> for types::Types {
+    fn from(t: Types) -> Self {
+        Self {
+            types: t
+                .0
+                .map(|ty| Box::new(Self::from(*ty)), |rrow| rrow, |erow| erow),
+            pos: TermPos::None,
+        }
+    }
 }
 
 impl<A> Field<A> {
-    pub fn doc(mut self, doc: impl AsRef<str>) -> Self {
-        self.metadata = Some(MetaValue {
-            doc: Some(doc.as_ref().into()),
-            ..self.metadata.unwrap_or_default()
-        });
-        self
+    pub fn doc(self, doc: impl AsRef<str>) -> Self {
+        self.some_doc(Some(doc))
     }
 
     pub fn some_doc(mut self, some_doc: Option<impl AsRef<str>>) -> Self {
-        if let Some(d) = some_doc {
-            self = self.doc(d);
-        }
+        self.metadata.doc = some_doc.map(|d| d.as_ref().to_owned());
         self
     }
 
-    pub fn optional(mut self) -> Self {
-        self.metadata = Some(MetaValue {
-            opt: true,
-            ..self.metadata.unwrap_or_default()
-        });
-        self
+    pub fn optional(self) -> Self {
+        self.set_optional(true)
     }
 
     pub fn set_optional(mut self, opt: bool) -> Self {
-        if self.metadata.is_none() && !opt {
-            return self;
-        }
-
-        self.metadata = Some(MetaValue {
-            opt,
-            ..self.metadata.unwrap_or_default()
-        });
+        self.metadata.opt = opt;
         self
     }
 
-    pub fn contract(mut self, contract: impl Into<Contract>) -> Self {
-        self.metadata = self.metadata.or_else(|| Some(Default::default()));
-        if let Some(mv) = self.metadata.as_mut() {
-            mv.contracts.push(contract.into())
-        }
+    pub fn not_exported(self) -> Self {
+        self.set_not_exported(true)
+    }
+
+    pub fn set_not_exported(mut self, not_exported: bool) -> Self {
+        self.metadata.not_exported = not_exported;
+        self
+    }
+
+    pub fn contract(mut self, contract: impl Into<Types>) -> Self {
+        self.metadata.annotation.contracts.push(LabeledType {
+            types: types::Types::from(contract.into()),
+            label: Default::default(),
+        });
         self
     }
 
     pub fn contracts<I>(mut self, contracts: I) -> Self
     where
-        I: IntoIterator<Item = Contract>,
+        I: IntoIterator<Item = Types>,
     {
-        self.metadata = self.metadata.or_else(|| Some(Default::default()));
-        if let Some(mv) = self.metadata.as_mut() {
-            mv.contracts.extend(contracts)
-        }
+        self.metadata
+            .annotation
+            .contracts
+            .extend(contracts.into_iter().map(|c| LabeledType {
+                types: c.into(),
+                label: Default::default(),
+            }));
         self
     }
 
-    pub fn types(mut self, t: impl Into<Contract>) -> Self {
-        self.metadata = Some(MetaValue {
-            types: Some(t.into()),
-            ..self.metadata.unwrap_or_default()
+    pub fn types(mut self, t: impl Into<Types>) -> Self {
+        self.metadata.annotation.types = Some(LabeledType {
+            types: types::Types::from(t.into()),
+            label: Default::default(),
         });
         self
     }
 
     pub fn priority(mut self, priority: MergePriority) -> Self {
-        self.metadata = Some(MetaValue {
-            priority,
-            ..self.metadata.unwrap_or_default()
-        });
+        self.metadata.priority = priority;
+        self
+    }
+
+    pub fn metadata(mut self, metadata: FieldMetadata) -> Self {
+        self.metadata = metadata;
         self
     }
 }
@@ -126,17 +144,6 @@ impl Field<Incomplete> {
     }
 }
 
-fn with_metadata(metadata: Option<MetaValue>, value: impl Into<RichTerm>) -> RichTerm {
-    match metadata {
-        Some(mv) => Term::MetaValue(MetaValue {
-            value: Some(value.into()),
-            ..mv
-        })
-        .into(),
-        None => value.into(),
-    }
-}
-
 impl Field<Complete> {
     pub fn with_record(self, r: Record) -> Record {
         let v = self.record;
@@ -156,31 +163,45 @@ impl Field<Record> {
     pub fn no_value(mut self) -> Record {
         self.record.fields.push((
             self.path,
-            Term::MetaValue(self.metadata.unwrap_or_default()).into(),
+            record::Field {
+                metadata: self.metadata,
+                ..Default::default()
+            },
         ));
         self.record
     }
 
     pub fn value(mut self, value: impl Into<RichTerm>) -> Record {
-        self.record
-            .fields
-            .push((self.path, with_metadata(self.metadata, value)));
+        self.record.fields.push((
+            self.path,
+            record::Field {
+                value: Some(value.into()),
+                metadata: self.metadata,
+                ..Default::default()
+            },
+        ));
         self.record
     }
 }
 
 #[derive(Debug)]
 pub struct Record {
-    fields: Vec<(StaticPath, RichTerm)>,
+    fields: Vec<(StaticPath, record::Field)>,
     attrs: RecordAttrs,
 }
 
-fn elaborate_field_path(path: StaticPath, content: RichTerm) -> (FieldPathElem, RichTerm) {
+fn elaborate_field_path(
+    path: StaticPath,
+    content: record::Field,
+) -> (FieldPathElem, record::Field) {
     let mut it = path.into_iter();
     let fst = it.next().unwrap();
 
     let content = it.rev().fold(content, |acc, id| {
-        Term::Record(RecordData::with_fields([(id, acc)].into())).into()
+        record::Field::from(RichTerm::from(Term::Record(RecordData {
+            fields: [(id, acc)].into(),
+            ..Default::default()
+        })))
     });
 
     (FieldPathElem::Ident(fst), content)
@@ -198,7 +219,7 @@ impl Record {
         Field {
             record: self,
             path: vec![name.as_ref().into()],
-            metadata: None,
+            metadata: Default::default(),
         }
     }
 
@@ -221,7 +242,7 @@ impl Record {
         Field {
             record: self,
             path: path.into_iter().map(|e| e.as_ref().into()).collect(),
-            metadata: None,
+            metadata: Default::default(),
         }
     }
 
@@ -275,13 +296,17 @@ impl From<Record> for RichTerm {
 mod tests {
     use nickel_lang::{
         parser::utils::{build_record, FieldPathElem},
-        term::RichTerm,
+        term::{RichTerm, TypeAnnotation},
         types::{TypeF, Types},
     };
 
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    fn term(t: Term) -> record::Field {
+        record::Field::from(RichTerm::from(t))
+    }
 
     #[test]
     fn trivial() {
@@ -294,7 +319,7 @@ mod tests {
             build_record(
                 vec![(
                     FieldPathElem::Ident("foo".into()),
-                    Term::Str("bar".into()).into()
+                    term(Term::Str("bar".to_owned()))
                 )],
                 Default::default()
             )
@@ -313,8 +338,8 @@ mod tests {
             t,
             build_record(
                 vec![
-                    (FieldPathElem::Ident("foo".into()), Term::Null.into()),
-                    (FieldPathElem::Ident("bar".into()), Term::Null.into()),
+                    (FieldPathElem::Ident("foo".into()), term(Term::Null)),
+                    (FieldPathElem::Ident("bar".into()), term(Term::Null)),
                 ],
                 Default::default()
             )
@@ -336,26 +361,24 @@ mod tests {
                 vec![
                     (
                         FieldPathElem::Ident("foo".into()),
-                        Term::MetaValue(MetaValue {
-                            doc: Some("foo".into()),
+                        record::Field {
+                            metadata: FieldMetadata {
+                                doc: Some("foo".into()),
+                                ..Default::default()
+                            },
                             ..Default::default()
-                        })
-                        .into()
+                        }
                     ),
-                    (
-                        FieldPathElem::Ident("bar".into()),
-                        Term::MetaValue(MetaValue {
-                            ..Default::default()
-                        })
-                        .into()
-                    ),
+                    (FieldPathElem::Ident("bar".into()), Default::default()),
                     (
                         FieldPathElem::Ident("baz".into()),
-                        Term::MetaValue(MetaValue {
-                            doc: Some("baz".into()),
+                        record::Field {
+                            metadata: FieldMetadata {
+                                doc: Some("baz".into()),
+                                ..Default::default()
+                            },
                             ..Default::default()
-                        })
-                        .into()
+                        }
                     )
                 ],
                 Default::default()
@@ -378,11 +401,11 @@ mod tests {
                 vec![
                     (
                         FieldPathElem::Ident("foo".into()),
-                        Term::Str("foo".into()).into()
+                        term(Term::Str("foo".into()))
                     ),
                     (
                         FieldPathElem::Ident("bar".into()),
-                        Term::Str("bar".into()).into()
+                        term(Term::Str("bar".into()))
                     ),
                 ],
                 Default::default()
@@ -405,19 +428,23 @@ mod tests {
                 vec![
                     (
                         FieldPathElem::Ident("foo".into()),
-                        Term::MetaValue(MetaValue {
-                            opt: true,
+                        record::Field {
+                            metadata: FieldMetadata {
+                                opt: true,
+                                ..Default::default()
+                            },
                             ..Default::default()
-                        })
-                        .into()
+                        }
                     ),
                     (
                         FieldPathElem::Ident("bar".into()),
-                        Term::MetaValue(MetaValue {
-                            opt: true,
+                        record::Field {
+                            metadata: FieldMetadata {
+                                opt: true,
+                                ..Default::default()
+                            },
                             ..Default::default()
-                        })
-                        .into()
+                        }
                     ),
                 ],
                 Default::default()
@@ -443,14 +470,13 @@ mod tests {
                 vec![
                     elaborate_field_path(
                         vec!["terraform".into(), "required_providers".into()],
-                        build_record(
+                        term(build_record(
                             vec![
-                                (FieldPathElem::Ident("foo".into()), Term::Null.into()),
-                                (FieldPathElem::Ident("bar".into()), Term::Null.into())
+                                (FieldPathElem::Ident("foo".into()), term(Term::Null)),
+                                (FieldPathElem::Ident("bar".into()), term(Term::Null))
                             ],
                             Default::default()
-                        )
-                        .into()
+                        ))
                     ),
                     elaborate_field_path(
                         vec![
@@ -458,7 +484,7 @@ mod tests {
                             "required_providers".into(),
                             "foo".into()
                         ],
-                        Term::Str("hello world!".into()).into()
+                        term(Term::Str("hello world!".into()))
                     )
                 ],
                 Default::default()
@@ -485,15 +511,13 @@ mod tests {
             build_record(
                 vec![(
                     FieldPathElem::Ident("foo".into()),
-                    Term::MetaValue(MetaValue {
-                        doc: None,
-                        types: None,
-                        contracts: vec![],
-                        opt: false,
-                        priority: MergePriority::Top,
-                        value: None,
-                    })
-                    .into()
+                    record::Field {
+                        metadata: FieldMetadata {
+                            priority: MergePriority::Top,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }
                 )],
                 Default::default()
             )
@@ -505,10 +529,7 @@ mod tests {
     fn contract() {
         let t: RichTerm = Record::new()
             .field("foo")
-            .contract(Contract {
-                types: Types(TypeF::Str),
-                label: Default::default(),
-            })
+            .contract(TypeF::String)
             .no_value()
             .into();
         assert_eq!(
@@ -516,14 +537,22 @@ mod tests {
             build_record(
                 vec![(
                     FieldPathElem::Ident("foo".into()),
-                    Term::MetaValue(MetaValue {
-                        contracts: vec![Contract {
-                            types: Types(TypeF::Str),
-                            label: Default::default()
-                        }],
+                    record::Field {
+                        metadata: FieldMetadata {
+                            annotation: TypeAnnotation {
+                                contracts: vec![LabeledType {
+                                    types: Types {
+                                        types: TypeF::String,
+                                        pos: TermPos::None
+                                    },
+                                    label: Default::default()
+                                }],
+                                ..Default::default()
+                            },
+                            ..Default::default()
+                        },
                         ..Default::default()
-                    })
-                    .into()
+                    }
                 )],
                 Default::default()
             )
@@ -537,15 +566,10 @@ mod tests {
             .field("foo")
             .priority(MergePriority::Bottom)
             .doc("foo?")
-            .contract(Contract {
-                types: Types(TypeF::Str),
-                label: Default::default(),
-            })
-            .types(Contract {
-                types: Types(TypeF::Num),
-                label: Default::default(),
-            })
+            .contract(TypeF::String)
+            .types(TypeF::Number)
             .optional()
+            .not_exported()
             .no_value()
             .into();
         assert_eq!(
@@ -553,21 +577,31 @@ mod tests {
             build_record(
                 vec![(
                     FieldPathElem::Ident("foo".into()),
-                    Term::MetaValue(MetaValue {
-                        doc: Some("foo?".into()),
-                        types: Some(Contract {
-                            types: Types(TypeF::Num),
-                            label: Default::default(),
-                        }),
-                        contracts: vec![Contract {
-                            types: Types(TypeF::Str),
-                            label: Default::default()
-                        }],
-                        opt: true,
-                        priority: MergePriority::Bottom,
-                        value: None,
-                    })
-                    .into()
+                    record::Field {
+                        metadata: FieldMetadata {
+                            doc: Some("foo?".into()),
+                            opt: true,
+                            priority: MergePriority::Bottom,
+                            not_exported: true,
+                            annotation: TypeAnnotation {
+                                types: Some(LabeledType {
+                                    types: Types {
+                                        types: TypeF::Number,
+                                        pos: TermPos::None
+                                    },
+                                    label: Default::default()
+                                }),
+                                contracts: vec![LabeledType {
+                                    types: Types {
+                                        types: TypeF::String,
+                                        pos: TermPos::None
+                                    },
+                                    label: Default::default()
+                                }],
+                            },
+                        },
+                        ..Default::default()
+                    }
                 )],
                 Default::default()
             )

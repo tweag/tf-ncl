@@ -1,18 +1,10 @@
-use std::convert::TryFrom;
 use std::rc::Rc;
 
 use crate::intermediate::{self, FieldDescriptor, GoSchema, Providers, WithProviders};
-use crate::nickel_builder as builder;
+use crate::nickel_builder::{self as builder, Types};
 use nickel_lang::term::array::{Array, ArrayAttrs};
-use nickel_lang::term::{Contract, MergePriority, RichTerm, Term};
-use nickel_lang::types::{TypeF, Types};
-
-fn type_contract(t: impl Into<Types>) -> Contract {
-    Contract {
-        types: t.into(),
-        label: Default::default(),
-    }
-}
+use nickel_lang::term::{MergePriority, RichTerm, Term};
+use nickel_lang::types::TypeF;
 
 pub trait AsNickel {
     fn as_nickel(&self) -> RichTerm;
@@ -124,9 +116,9 @@ impl AsNickelField for &intermediate::Attribute {
         let (t, computed_fields) = type_.as_nickel_contracts();
         let field = field.some_doc(description.clone()).set_optional(*optional);
         let field = if let Some(fs) = computed_fields {
-            field.contracts([t, fs].map(type_contract))
+            field.contracts([t, fs])
         } else {
-            field.contract(type_contract(t))
+            field.contract(t)
         };
         if *computed {
             field
@@ -155,8 +147,8 @@ impl From<PrimitiveType> for RichTerm {
         use PrimitiveType::*;
         match t {
             Dyn => Var("Dyn".into()).into(),
-            Str => Var("Str".into()).into(),
-            Num => Var("Num".into()).into(),
+            Str => Var("String".into()).into(),
+            Num => Var("Number".into()).into(),
             Bool => Var("Bool".into()).into(),
         }
     }
