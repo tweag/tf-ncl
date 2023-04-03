@@ -3,6 +3,7 @@
     nixpkgs.url = "nixpkgs/nixos-unstable";
     utils.url = "github:numtide/flake-utils";
     nickel.url = "github:tweag/nickel";
+    topiary.url = "github:tweag/topiary";
     import-cargo.url = "github:edolstra/import-cargo";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -159,6 +160,7 @@
               rustfmt
               clippy
               nixpkgs-fmt
+              inputs.topiary.packages.${system}.default
 
               go
               gopls
