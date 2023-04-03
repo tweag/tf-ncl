@@ -1,10 +1,15 @@
 {
+  config
+    | not_exported
+    = {
+    os = [ "ubuntu-latest", "macos-latest" ],
+  },
+
   concurrency = { group = "ci-${{ github.ref }}", cancel-in-progress = true },
   name = "CI",
   on = { push = { branches = ["main"] }, pull_request = { branches = ["main"] } },
-  jobs = {
-    build-and-test = {
-      strategy = { matrix = { os = [ "ubuntu-latest", "macos-latest" ] } },
+  jobs = config.os |> array.map (fun os => {
+    "build-and-test-%{os}" = {
       steps = [
         { uses = "actions/checkout@v3" },
         {
@@ -21,7 +26,7 @@
           name = "Run nix flake check"
         }
       ],
-      runs-on = "${{ matrix.os }}"
+      runs-on = os,
     }
-  }
+  }) |> record.merge_all,
 }

@@ -5,8 +5,8 @@
     "group": "ci-${{ github.ref }}"
   },
   "jobs": {
-    "build-and-test": {
-      "runs-on": "${{ matrix.os }}",
+    "build-and-test-macos-latest": {
+      "runs-on": "macos-latest",
       "steps": [
         {
           "uses": "actions/checkout@v3"
@@ -31,15 +31,35 @@
           "name": "Run nix flake check",
           "run": "nix flake check --print-build-logs"
         }
-      ],
-      "strategy": {
-        "matrix": {
-          "os": [
-            "ubuntu-latest",
-            "macos-latest"
-          ]
+      ]
+    },
+    "build-and-test-ubuntu-latest": {
+      "runs-on": "ubuntu-latest",
+      "steps": [
+        {
+          "uses": "actions/checkout@v3"
+        },
+        {
+          "name": "Installing Nix",
+          "uses": "cachix/install-nix-action@v20",
+          "with": {
+            "extra_nix_config": "experimental-features = nix-command flakes",
+            "nix_path": "nixpkgs=channel:nixos-unstable"
+          }
+        },
+        {
+          "name": "Setup Cachix",
+          "uses": "cachix/cachix-action@v12",
+          "with": {
+            "authToken": "${{ secrets.CACHIX_TWEAG_NICKEL_AUTH_TOKEN }}",
+            "name": "tweag-nickel"
+          }
+        },
+        {
+          "name": "Run nix flake check",
+          "run": "nix flake check --print-build-logs"
         }
-      }
+      ]
     }
   },
   "name": "CI",
