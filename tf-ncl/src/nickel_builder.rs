@@ -251,6 +251,10 @@ impl Record {
         self
     }
 
+    // Clippy correctly observes that `open` is the only field in `RecordAttrs`.
+    // Nevertheless, we want to do the record update. That way we can be
+    // somewhat futureproof in case new fields are added to `RecordAttrs` in
+    // Nickel.
     #[allow(clippy::needless_update)]
     pub fn open(mut self) -> Self {
         self.attrs = RecordAttrs {
@@ -260,12 +264,10 @@ impl Record {
         self
     }
 
+    // See `open` for comments on the clippy directive
     #[allow(clippy::needless_update)]
     pub fn set_open(mut self, open: bool) -> Self {
-        self.attrs = RecordAttrs {
-            open,
-            ..self.attrs
-        };
+        self.attrs = RecordAttrs { open, ..self.attrs };
         self
     }
 
