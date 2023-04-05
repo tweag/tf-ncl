@@ -53,6 +53,7 @@ type Type struct {
 	MinItems *uint64               `json:"min,omitempty"`
 	MaxItems *uint64               `json:"max,omitempty"`
 	Content  *Type                 `json:"content,omitempty"`
+	Open     bool                  `json:"open,omitempty"`
 	Object   *map[string]Attribute `json:"object,omitempty"`
 }
 
@@ -60,6 +61,11 @@ type ListVariant struct {
 	MinItems *uint64 `json:"min,omitempty"`
 	MaxItems *uint64 `json:"max,omitempty"`
 	Content  *Type   `json:"content,omitempty"`
+}
+
+type ObjectVariant struct {
+	Open    bool                  `json:"open"`
+	Content *map[string]Attribute `json:"content,omitempty"`
 }
 
 func (t Type) MarshalJSON() (b []byte, e error) {
@@ -76,9 +82,12 @@ func (t Type) MarshalJSON() (b []byte, e error) {
 		})
 	case Object:
 		return json.Marshal(struct {
-			Object *map[string]Attribute
+			Object ObjectVariant
 		}{
-			Object: t.Object,
+			Object: ObjectVariant{
+				Open:    t.Open,
+				Content: t.Object,
+			},
 		})
 	case Dictionary:
 		return json.Marshal(struct {
