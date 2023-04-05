@@ -261,9 +261,9 @@ impl Record {
     }
 
     #[allow(clippy::needless_update)]
-    pub fn set_open(mut self, o: bool) -> Self {
+    pub fn set_open(mut self, open: bool) -> Self {
         self.attrs = RecordAttrs {
-            open: o,
+            open,
             ..self.attrs
         };
         self
