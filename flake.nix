@@ -108,9 +108,19 @@
             };
           };
 
-          terraformProviders = removeAttrs pkgs.terraform-providers.actualProviders [
-            "checkpoint" # build is broken
-          ];
+          terraformProviders = pkgs.terraform-providers.actualProviders;
+
+          release = pkgs.runCommand "release-tarball"
+            {
+              nativeBuildInputs = [ pkgs.pixz ];
+            } ''
+            mkdir -p $out
+            mkdir tf-ncl
+            ${lib.concatLines (lib.flip lib.mapAttrsToList inputs.self.schemas.${system} (provider: schema: ''
+              cp ${schema} tf-ncl/${provider}.ncl
+            ''))}
+            tar --sort=name --mtime='@1' --owner=0 --group=0 --numeric-owner -c tf-ncl/*.ncl | pixz -t > $out/tf-ncl.tar.xz
+          '';
         in
         rec {
           checks =
@@ -146,8 +156,8 @@
 
           packages = {
             default = packages.tf-ncl;
-            inherit tf-ncl schema-merge;
             terraform = pkgs.terraform;
+            inherit tf-ncl schema-merge release;
           } // lib.mapAttrs' (name: value: lib.nameValuePair "schema-${name}" value) schemas;
 
           inherit terraformProviders;
