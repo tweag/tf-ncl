@@ -260,6 +260,15 @@ impl Record {
         self
     }
 
+    #[allow(clippy::needless_update)]
+    pub fn set_open(mut self, o: bool) -> Self {
+        self.attrs = RecordAttrs {
+            open: o,
+            ..self.attrs
+        };
+        self
+    }
+
     pub fn build(self) -> RichTerm {
         let elaborated = self
             .fields

@@ -36,6 +36,7 @@ func has_object_type(computed_fields *[]FieldDescriptor, path []string, ecs sche
 			}
 			return true, &Type{
 				Tag:    Object,
+				Open:   false,
 				Object: &obj,
 			}
 		}
@@ -273,6 +274,29 @@ func wrap_block_type(path []string, labels []Label, bs *schema.BlockSchema, t sc
 	}
 }
 
+var special_open_block_paths = [...][]string{{"data"}, {"resource"}, {"provider"}, {"terraform", "backend"}}
+
+func check_candidate(path []string, candidate []string) bool {
+	if len(candidate) != len(path) {
+		return false
+	}
+	for i := range candidate {
+		if candidate[i] != path[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func should_be_open(path []string) bool {
+	for _, candidate := range special_open_block_paths {
+		if check_candidate(path, candidate) {
+			return true
+		}
+	}
+	return false
+}
+
 func assemble_blocks(computed_fields *[]FieldDescriptor, path []string, bs *schema.BlockSchema, all_labels []Label, labels []Label, accumulated_bodies []*schema.BodySchema) Attribute {
 	if len(labels) == 0 {
 		t := fixup_block_type(path, all_labels, bs)
@@ -299,6 +323,7 @@ func assemble_blocks(computed_fields *[]FieldDescriptor, path []string, bs *sche
 			Computed: false,
 			Type: Type{
 				Tag:    Object,
+				Open:   false,
 				Object: &obj,
 			},
 		})
@@ -327,6 +352,7 @@ func assemble_blocks(computed_fields *[]FieldDescriptor, path []string, bs *sche
 			Computed: false,
 			Type: Type{
 				Tag:    Object,
+				Open:   should_be_open(path),
 				Object: &obj,
 			},
 		}

@@ -186,13 +186,14 @@ impl AsNickelContracts for &intermediate::Type {
                 ))),
                 None,
             ),
-            Object(fields) => (
+            Object { open, content } => (
                 Types(TypeF::Flat(
                     builder::Record::from(
-                        fields
+                        content
                             .iter()
                             .map(|(k, v)| v.as_nickel_field(builder::Field::name(k))),
                     )
+                    .set_open(*open)
                     .into(),
                 )),
                 None,

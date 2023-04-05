@@ -34,7 +34,10 @@ pub enum Type {
         max: Option<u32>,
         content: Box<Type>,
     },
-    Object(HashMap<String, Attribute>),
+    Object {
+        open: bool,
+        content: HashMap<String, Attribute>,
+    },
     #[serde(deserialize_with = "transparent")]
     Dictionary {
         inner: Box<Type>,
@@ -89,7 +92,7 @@ fn attribute_at_path<'a>(
     let mut obj = schema;
     for p in path.split_last().map(|x| x.1).unwrap_or(&[]) {
         obj = obj.get_mut(p).and_then(|attr| match &mut attr.type_ {
-            Type::Object(obj) => Some(obj),
+            Type::Object { open: _, content } => Some(content),
             _ => None,
         })?;
     }
