@@ -6,7 +6,7 @@
   },
   "jobs": {
     "build-and-test-macos-latest": {
-      "name": "Build and Test/(macos-latest)",
+      "name": "Build and Test / (macos-latest)",
       "runs-on": "macos-latest",
       "steps": [
         {
@@ -35,7 +35,7 @@
       ]
     },
     "build-and-test-ubuntu-latest": {
-      "name": "Build and Test/(ubuntu-latest)",
+      "name": "Build and Test / (ubuntu-latest)",
       "runs-on": "ubuntu-latest",
       "steps": [
         {

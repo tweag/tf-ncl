@@ -34,7 +34,7 @@ in
           "%{sanitize "%{matrix.name}-%{name_of_config config'}"}" = (
             matrix & { config = config' }
           ).job & {
-              name = "%{matrix.name}/(%{name_of_config config'})",
+              name = "%{matrix.name} / (%{name_of_config config'})",
           }
         }
     )
