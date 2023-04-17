@@ -1,7 +1,8 @@
+use codespan::Files;
 use nickel_lang::{
     identifier::Ident,
     parser::utils::{build_record, FieldPathElem},
-    position::TermPos,
+    position::{RawSpan, TermPos},
     term::{
         record::{self, FieldMetadata, RecordAttrs, RecordData},
         LabeledType, MergePriority, RichTerm, Term,
@@ -10,6 +11,18 @@ use nickel_lang::{
 };
 
 type StaticPath = Vec<Ident>;
+
+// This is horrible. But Nickel assumes in various places that `TermPos` are
+// set, for example when building record fields piece by piece. This will work as
+// long as the resulting Nickel term is only pretty printed. Expect evaluation to
+// fail horribly on any error.
+fn fake_termpos() -> TermPos {
+    TermPos::Original(RawSpan {
+        src_id: Files::default().add("<fake>", ""),
+        start: 0.into(),
+        end: 0.into(),
+    })
+}
 
 pub struct Incomplete();
 
@@ -218,7 +231,7 @@ impl Record {
     pub fn field(self, name: impl AsRef<str>) -> Field<Record> {
         Field {
             record: self,
-            path: vec![name.as_ref().into()],
+            path: vec![Ident::new_with_pos(name, fake_termpos())],
             metadata: Default::default(),
         }
     }
@@ -241,7 +254,10 @@ impl Record {
     {
         Field {
             record: self,
-            path: path.into_iter().map(|e| e.as_ref().into()).collect(),
+            path: path
+                .into_iter()
+                .map(|e| Ident::new_with_pos(e, fake_termpos()))
+                .collect(),
             metadata: Default::default(),
         }
     }
@@ -329,8 +345,8 @@ mod tests {
             t,
             build_record(
                 vec![(
-                    FieldPathElem::Ident("foo".into()),
-                    term(Term::Str("bar".to_owned()))
+                    FieldPathElem::Ident(Ident::new_with_pos("foo", fake_termpos())),
+                    term(Term::Str("bar".to_owned().into()))
                 )],
                 Default::default()
             )
@@ -349,8 +365,14 @@ mod tests {
             t,
             build_record(
                 vec![
-                    (FieldPathElem::Ident("foo".into()), term(Term::Null)),
-                    (FieldPathElem::Ident("bar".into()), term(Term::Null)),
+                    (
+                        FieldPathElem::Ident(Ident::new_with_pos("foo", fake_termpos())),
+                        term(Term::Null)
+                    ),
+                    (
+                        FieldPathElem::Ident(Ident::new_with_pos("bar", fake_termpos())),
+                        term(Term::Null)
+                    ),
                 ],
                 Default::default()
             )
@@ -371,7 +393,7 @@ mod tests {
             build_record(
                 vec![
                     (
-                        FieldPathElem::Ident("foo".into()),
+                        FieldPathElem::Ident(Ident::new_with_pos("foo", fake_termpos())),
                         record::Field {
                             metadata: FieldMetadata {
                                 doc: Some("foo".into()),
@@ -380,9 +402,12 @@ mod tests {
                             ..Default::default()
                         }
                     ),
-                    (FieldPathElem::Ident("bar".into()), Default::default()),
                     (
-                        FieldPathElem::Ident("baz".into()),
+                        FieldPathElem::Ident(Ident::new_with_pos("bar", fake_termpos())),
+                        Default::default()
+                    ),
+                    (
+                        FieldPathElem::Ident(Ident::new_with_pos("baz", fake_termpos())),
                         record::Field {
                             metadata: FieldMetadata {
                                 doc: Some("baz".into()),
@@ -411,11 +436,11 @@ mod tests {
             build_record(
                 vec![
                     (
-                        FieldPathElem::Ident("foo".into()),
+                        FieldPathElem::Ident(Ident::new_with_pos("foo", fake_termpos())),
                         term(Term::Str("foo".into()))
                     ),
                     (
-                        FieldPathElem::Ident("bar".into()),
+                        FieldPathElem::Ident(Ident::new_with_pos("bar", fake_termpos())),
                         term(Term::Str("bar".into()))
                     ),
                 ],
@@ -438,7 +463,7 @@ mod tests {
             build_record(
                 vec![
                     (
-                        FieldPathElem::Ident("foo".into()),
+                        FieldPathElem::Ident(Ident::new_with_pos("foo", fake_termpos())),
                         record::Field {
                             metadata: FieldMetadata {
                                 opt: true,
@@ -448,7 +473,7 @@ mod tests {
                         }
                     ),
                     (
-                        FieldPathElem::Ident("bar".into()),
+                        FieldPathElem::Ident(Ident::new_with_pos("bar", fake_termpos())),
                         record::Field {
                             metadata: FieldMetadata {
                                 opt: true,
@@ -483,17 +508,29 @@ mod tests {
                         vec!["terraform".into(), "required_providers".into()],
                         term(build_record(
                             vec![
-                                (FieldPathElem::Ident("foo".into()), term(Term::Null)),
-                                (FieldPathElem::Ident("bar".into()), term(Term::Null))
+                                (
+                                    FieldPathElem::Ident(Ident::new_with_pos(
+                                        "foo",
+                                        fake_termpos()
+                                    )),
+                                    term(Term::Null)
+                                ),
+                                (
+                                    FieldPathElem::Ident(Ident::new_with_pos(
+                                        "bar",
+                                        fake_termpos()
+                                    )),
+                                    term(Term::Null)
+                                )
                             ],
                             Default::default()
                         ))
                     ),
                     elaborate_field_path(
                         vec![
-                            "terraform".into(),
-                            "required_providers".into(),
-                            "foo".into()
+                            Ident::new_with_pos("terraform", fake_termpos()),
+                            Ident::new_with_pos("required_providers", fake_termpos()),
+                            Ident::new_with_pos("foo", fake_termpos())
                         ],
                         term(Term::Str("hello world!".into()))
                     )
@@ -547,7 +584,7 @@ mod tests {
             t,
             build_record(
                 vec![(
-                    FieldPathElem::Ident("foo".into()),
+                    FieldPathElem::Ident(Ident::new_with_pos("foo", fake_termpos())),
                     record::Field {
                         metadata: FieldMetadata {
                             annotation: TypeAnnotation {
@@ -587,7 +624,7 @@ mod tests {
             t,
             build_record(
                 vec![(
-                    FieldPathElem::Ident("foo".into()),
+                    FieldPathElem::Ident(Ident::new_with_pos("foo", fake_termpos())),
                     record::Field {
                         metadata: FieldMetadata {
                             doc: Some("foo?".into()),

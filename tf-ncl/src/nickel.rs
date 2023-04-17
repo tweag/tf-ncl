@@ -26,10 +26,10 @@ impl AsNickel for Providers {
             Field::name(name).value(Record::from([
                 Field::name("source")
                     .priority(MergePriority::Bottom)
-                    .value(Term::Str(provider.source.clone())),
+                    .value(Term::Str(provider.source.clone().into())),
                 Field::name("version")
                     .priority(MergePriority::Bottom)
-                    .value(Term::Str(provider.version.clone())),
+                    .value(Term::Str(provider.version.clone().into())),
             ]))
         }))
         .build()
@@ -41,7 +41,7 @@ impl AsNickel for Vec<String> {
         Term::Array(
             Array::new(
                 self.iter()
-                    .map(|s| RichTerm::from(Term::Str(s.clone())))
+                    .map(|s| RichTerm::from(Term::Str(s.into())))
                     .collect::<Vec<_>>()
                     .into_boxed_slice()
                     .into(),
@@ -85,7 +85,7 @@ impl AsNickel for FieldDescriptor {
                 Array::new(Rc::from(
                     self.path
                         .iter()
-                        .map(|s| RichTerm::from(Term::Str(s.clone())))
+                        .map(|s| RichTerm::from(Term::Str(s.into())))
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                 )),
