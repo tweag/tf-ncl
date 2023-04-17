@@ -11,6 +11,7 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 nickel-lang = "0.3.1"
 pretty = "0.11"
+codespan = "0.11.1"
 
 [dev-dependencies]
 pretty_assertions = "1.3"
