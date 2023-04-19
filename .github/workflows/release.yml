@@ -34,7 +34,7 @@
             "asset_content_type": "application/x-xz",
             "asset_name": "Generated Tf-Ncl Schemas",
             "asset_path": "./result/tf-ncl.tar.xz",
-            "upload_url": "${{ github.event.release.upload_url }}"
+            "upload_url": "${{ github.event_name == \"release\" && github.event.release.upload_url || github.inputs.release_upload_url }}"
           }
         }
       ]
@@ -46,6 +46,13 @@
       "types": [
         "created"
       ]
+    },
+    "workflow_dispatch": {
+      "inputs": {
+        "release_upload_url": {
+          "description": "The `upload_url` of the release to target"
+        }
+      }
     }
   }
 }
