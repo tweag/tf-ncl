@@ -31,6 +31,10 @@
         {
           "name": "Run nix flake check",
           "run": "nix flake check --print-build-logs"
+        },
+        {
+          "name": "Test if examples work",
+          "run": "nix run .#test-examples"
         }
       ]
     },
@@ -60,6 +64,10 @@
         {
           "name": "Run nix flake check",
           "run": "nix flake check --print-build-logs"
+        },
+        {
+          "name": "Test if examples work",
+          "run": "nix run .#test-examples"
         }
       ]
     }

@@ -24,13 +24,21 @@
     name = "Build and Test",
 
     job = {
-      steps = import "../../ncl/github/setup-steps.ncl"
-      @ [{
-        run = "nix flake check --print-build-logs",
-        name = "Run nix flake check"
-      }],
+      steps =
+        import "../../ncl/github/setup-steps.ncl"
+        @ [
+          {
+            run = "nix flake check --print-build-logs",
+            name = "Run nix flake check"
+          },
+          {
+            run = "nix run .#test-examples",
+            name = "Test if examples work"
+          }
+        ],
       runs-on = config.os,
     }
   },
 }
 & import "../../ncl/github/matrix.ncl"
+
