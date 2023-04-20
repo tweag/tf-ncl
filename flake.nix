@@ -128,8 +128,8 @@
             trap 'rm -r -- "$temp_directory"' EXIT
 
             cd "$temp_directory"
-            nix flake init -t "${self}#github-users"
-            nix develop --override-input tf-ncl "${self}" -c run-nickel
+            nix flake init --accept-flake-config -t "${self}#github-users"
+            nix develop --accept-flake-config --override-input tf-ncl "${self}" -c run-nickel
           '';
 
           test-examples = pkgs.writeShellScriptBin "test-examples" ''
