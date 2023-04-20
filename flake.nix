@@ -122,9 +122,9 @@
             tar --sort=name --mtime='@1' --owner=0 --group=0 --numeric-owner -c tf-ncl/*.ncl | pixz -t > $out/tf-ncl.tar.xz
           '';
         in
-        rec {
+        {
           checks =
-            schemas //
+            self.schemas.${system} //
             (lib.mapAttrs'
               (name: drv: lib.nameValuePair "check-${name}" (
                 let
@@ -149,30 +149,46 @@
                   ${inputs.nickel.packages.${system}.default}/bin/nickel export -f ${conf} > $out
                 ''
               ))
-              schemas) //
+              self.schemas) //
             {
               inherit tf-ncl schema-merge pre-commit;
             };
 
           packages = {
-            default = packages.tf-ncl;
+            default = tf-ncl;
             terraform = pkgs.terraform;
             inherit tf-ncl schema-merge release;
-          } // lib.mapAttrs' (name: value: lib.nameValuePair "schema-${name}" value) schemas;
+          } // lib.mapAttrs' (name: value: lib.nameValuePair "schema-${name}" value) self.schemas.${system};
 
           inherit terraformProviders;
 
           generateJsonSchema = providerFn: pkgs.callPackage
-            (import "${self}/nix/terraform_schema.nix" (providerFn terraformProviders))
-            { inherit (packages) schema-merge; };
+            (import ./nix/terraform_schema.nix (providerFn terraformProviders))
+            { inherit (self.packages.${system}) schema-merge; };
 
           generateSchema = providerFn: pkgs.callPackage
-            "${self}/nix/nickel_schema.nix"
-            { jsonSchema = generateJsonSchema providerFn; inherit (packages) tf-ncl; };
+            ./nix/nickel_schema.nix
+            { jsonSchema = self.generateJsonSchema.${system} providerFn; inherit (self.packages.${system}) tf-ncl; };
 
           schemas = lib.mapAttrs
-            (name: p: generateSchema (_: { ${name} = p; }))
+            (name: p: self.generateSchema.${system} (_: { ${name} = p; }))
             terraformProviders;
+
+          lib = {
+            mkDevShell = args:
+              pkgs.mkShell {
+                buildInputs = lib.attrValues
+                  (pkgs.callPackage ./nix/devshell.nix
+                    {
+                      generateSchema = self.generateSchema.${system};
+                      inherit (inputs.nickel.packages.${system}) nickel;
+                    }
+                    args) ++ [
+                  inputs.nickel.packages.${system}.nickel
+                  inputs.nickel.packages.${system}.lsp-nls
+                ];
+              };
+          };
 
           devShells.default = pkgs.mkShell {
             inputsFrom = builtins.attrValues self.checks;
