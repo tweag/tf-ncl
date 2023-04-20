@@ -1,8 +1,11 @@
 {
   is-admin
     | Bool
-    | default = false,
+    | default
+    = false,
   extra-teams
-    | Array Str
-    | default = [],
+    | Array String
+    | default
+    = [],
 }
+
