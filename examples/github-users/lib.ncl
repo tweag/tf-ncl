@@ -11,14 +11,12 @@
         (std.array.fold_left go { visited = ({} | { _ : {} }), out = [] } (arr | Array Dyn)).out,
 
   collect_teams = fun users =>
-    ["all"]
-    @ (
       users
+      |> std.array.prepend "all"
       |> std.record.values
       |> std.array.map (fun user => user.extra-teams)
       |> std.array.flatten
-      |> uniq
-    ),
+      |> uniq,
 
   collect_users = fun users team =>
     users
