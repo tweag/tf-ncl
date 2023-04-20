@@ -149,7 +149,7 @@
                   ${inputs.nickel.packages.${system}.default}/bin/nickel export -f ${conf} > $out
                 ''
               ))
-              self.schemas) //
+              self.schemas.${system}) //
             {
               inherit tf-ncl schema-merge pre-commit;
             };
