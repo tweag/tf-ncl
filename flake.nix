@@ -121,6 +121,21 @@
             ''))}
             tar --sort=name --mtime='@1' --owner=0 --group=0 --numeric-owner -c tf-ncl/*.ncl | pixz -t > $out/tf-ncl.tar.xz
           '';
+
+          test-single-example = template: pkgs.writeShellScript "test-${template}" ''
+            set -e -x
+            temp_directory=$(mktemp -d)
+            trap 'rm -r -- "$temp_directory"' EXIT
+
+            cd "$temp_directory"
+            nix flake init --accept-flake-config -t "${self}#github-users"
+            nix develop --accept-flake-config --override-input tf-ncl "${self}" -c run-nickel
+          '';
+
+          test-examples = pkgs.writeShellScriptBin "test-examples" ''
+            set -e -x
+            ${lib.concatMapStringsSep "\n" (tmpl: "${test-single-example tmpl}") (lib.attrNames self.templates)}
+          '';
         in
         {
           checks =
@@ -157,7 +172,7 @@
           packages = {
             default = tf-ncl;
             terraform = pkgs.terraform;
-            inherit tf-ncl schema-merge release;
+            inherit tf-ncl schema-merge release test-examples;
           } // lib.mapAttrs' (name: value: lib.nameValuePair "schema-${name}" value) self.schemas.${system};
 
           inherit terraformProviders;

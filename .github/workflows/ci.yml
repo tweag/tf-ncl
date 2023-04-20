@@ -29,8 +29,8 @@
           }
         },
         {
-          "name": "Run nix flake check",
-          "run": "nix flake check --print-build-logs"
+          "name": "Run flake check",
+          "run": "nix flake check --print-build-logs\nnix run .#test-examples"
         }
       ]
     },
@@ -58,8 +58,8 @@
           }
         },
         {
-          "name": "Run nix flake check",
-          "run": "nix flake check --print-build-logs"
+          "name": "Run flake check",
+          "run": "nix flake check --print-build-logs\nnix run .#test-examples"
         }
       ]
     }
