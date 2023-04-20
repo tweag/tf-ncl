@@ -12,11 +12,11 @@
 
   collect_teams = fun users =>
       users
-      |> std.array.prepend "all"
       |> std.record.values
       |> std.array.map (fun user => user.extra-teams)
       |> std.array.flatten
-      |> uniq,
+      |> uniq
+      |> std.array.prepend "all",
 
   collect_users = fun users team =>
     users
