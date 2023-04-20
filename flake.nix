@@ -186,6 +186,7 @@
                     args) ++ [
                   inputs.nickel.packages.${system}.nickel
                   inputs.nickel.packages.${system}.lsp-nls
+                  inputs.topiary.packages.${system}.default
                 ];
               };
           };
