@@ -11,12 +11,12 @@
         (std.array.fold_left go { visited = ({} | { _ : {} }), out = [] } (arr | Array Dyn)).out,
 
   collect_teams = fun users =>
-      users
-      |> std.record.values
-      |> std.array.map (fun user => user.extra-teams)
-      |> std.array.flatten
-      |> uniq
-      |> std.array.prepend "all",
+    users
+    |> std.record.values
+    |> std.array.map (fun user => user.extra-teams)
+    |> std.array.flatten
+    |> uniq
+    |> std.array.prepend "all",
 
   collect_users = fun users team =>
     users
@@ -57,7 +57,7 @@
             },
           }
       )
-    |> std.array.fold_left (&) {},
+    |> std.record.merge_all,
 
   mk_memberships = fun users =>
     users
@@ -73,6 +73,6 @@
             }
           }
       )
-    |> std.array.fold_left (&) {}
+    |> std.record.merge_all
 }
 
