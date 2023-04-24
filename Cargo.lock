@@ -972,7 +972,7 @@ dependencies = [
 [[package]]
 name = "nickel-lang"
 version = "0.3.1"
-source = "git+https://github.com/tweag/nickel#023332563e12d623abf29593604ca1eb2d8209bc"
+source = "git+https://github.com/tweag/nickel#9275ac18dfba925f183015baaa3176c49f60d601"
 dependencies = [
  "ansi_term",
  "codespan",
@@ -999,6 +999,7 @@ dependencies = [
  "sha-1",
  "sha2",
  "simple-counter",
+ "strip-ansi-escapes",
  "structopt",
  "termimad",
  "toml",
@@ -1579,6 +1580,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "strip-ansi-escapes"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "011cbb39cf7c1f62871aea3cc46e5817b0937b49e9447370c93cacbe93a766d8"
+dependencies = [
+ "vte",
+]
+
+[[package]]
 name = "strsim"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1877,6 +1887,27 @@ name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
+name = "vte"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6cbce692ab4ca2f1f3047fcf732430249c0e971bfdd2b234cf2c47ad93af5983"
+dependencies = [
+ "arrayvec",
+ "utf8parse",
+ "vte_generate_state_changes",
+]
+
+[[package]]
+name = "vte_generate_state_changes"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d257817081c7dffcdbab24b9e62d2def62e2ff7d00b1c20062551e6cccc145ff"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
 
 [[package]]
 name = "walkdir"

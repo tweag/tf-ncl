@@ -4,7 +4,7 @@ use crate::intermediate::{self, FieldDescriptor, GoSchema, Providers, WithProvid
 use crate::nickel_builder::{self as builder, Types};
 use nickel_lang::term::array::{Array, ArrayAttrs};
 use nickel_lang::term::{MergePriority, RichTerm, Term};
-use nickel_lang::types::TypeF;
+use nickel_lang::types::{DictTypeFlavour, TypeF};
 
 pub trait AsNickel {
     fn as_nickel(&self) -> RichTerm;
@@ -203,9 +203,10 @@ impl AsNickelContracts for &intermediate::Type {
                 prefix,
                 computed_fields,
             } => {
-                let inner_contract = Types(TypeF::Dict(Box::new(
-                    inner.as_ref().as_nickel_contracts().0,
-                )));
+                let inner_contract = Types(TypeF::Dict {
+                    type_fields: Box::new(inner.as_ref().as_nickel_contracts().0),
+                    flavour: DictTypeFlavour::Contract,
+                });
                 (
                     inner_contract,
                     Some(Types(TypeF::Flat(mk_app!(

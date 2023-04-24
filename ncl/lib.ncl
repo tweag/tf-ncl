@@ -61,7 +61,7 @@
   provider_computed = fun path_ =>
     { terraform_field_type = `ProviderComputed, path = path_ },
 
-  undefined = { terraform_field_type = `Undefined },
+  undefined = { terraform_field_type | default = `Undefined },
 
   resolve_reference : Array String -> String
     = fun ns => "${%{std.string.join "." ns}}",
@@ -200,10 +200,12 @@
                 )
               |> std.array.flatten
             else if std.array.length field.path == 1 then
-              [{
-                prio = field.prio,
-                path = prefix @ [head]
-              }]
+              [
+                {
+                  prio = field.prio,
+                  path = prefix @ [head]
+                }
+              ]
             else
               let r' =
                 if std.record.has_field head r then r."%{head}" else {}
