@@ -258,6 +258,13 @@
           '';
         };
 
+        aws = {
+          path = ./examples/aws;
+          description = ''
+            An example demonstrating how to start building an abstraction around the AWS provider interface.
+          '';
+        };
+
         default = hello-tf;
       };
     };
