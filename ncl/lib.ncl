@@ -1,13 +1,13 @@
 {
   deep_filter_map =
     {
-      go : Array String -> (Array String -> Dyn -> { action : [| `KeepStop, `Continue, `Delete |], value : Dyn }) -> { _ : Dyn } -> { _ : Dyn } -> String -> { _ : Dyn } = fun prefix f r acc field_name =>
+      go : Array String -> (Array String -> Dyn -> { action : [| 'KeepStop, 'Continue, 'Delete |], value : Dyn }) -> { _ : Dyn } -> { _ : Dyn } -> String -> { _ : Dyn } = fun prefix f r acc field_name =>
           let prefix = prefix @ [field_name] in
           let result = f prefix (r."%{field_name}") in
           result.action
           |> match {
-            `KeepStop => std.record.insert field_name result.value acc,
-            `Continue =>
+            'KeepStop => std.record.insert field_name result.value acc,
+            'Continue =>
               let new_value =
                 if std.is_record result.value then
                   (deep_filter_map_prefix prefix f (result.value | { _ : Dyn })) | Dyn
@@ -15,16 +15,16 @@
                   result.value
               in
               std.record.insert field_name new_value acc,
-            `Delete => acc,
+            'Delete => acc,
           },
 
-      deep_filter_map_prefix : Array String -> (Array String -> Dyn -> { action : [| `KeepStop, `Continue, `Delete |], value : Dyn }) -> { _ : Dyn } -> { _ : Dyn }
+      deep_filter_map_prefix : Array String -> (Array String -> Dyn -> { action : [| 'KeepStop, 'Continue, 'Delete |], value : Dyn }) -> { _ : Dyn } -> { _ : Dyn }
         = fun prefix f r =>
           r
           |> std.record.fields
           |> std.array.fold_left (go prefix f r) {},
 
-      deep_filter_map : (Array String -> Dyn -> { action : [| `KeepStop, `Continue, `Delete |], value : Dyn }) -> { _ : Dyn } -> { _ : Dyn }
+      deep_filter_map : (Array String -> Dyn -> { action : [| 'KeepStop, 'Continue, 'Delete |], value : Dyn }) -> { _ : Dyn } -> { _ : Dyn }
         = deep_filter_map_prefix [],
     }.deep_filter_map,
 
@@ -38,13 +38,13 @@
   TerraformField = fun ctr =>
     TaggedUnion
       "terraform_field_type"
-      [| `Undefined, `Literal, `Reference, `ProviderComputed |]
+      [| 'Undefined, 'Literal, 'Reference, 'ProviderComputed |]
       (
         match {
-          `Undefined => {},
-          `Literal => { value | ctr },
-          `Reference => { value | Array Dyn },
-          `ProviderComputed => { path | TerraformReference },
+          'Undefined => {},
+          'Literal => { value | ctr },
+          'Reference => { value | Array Dyn },
+          'ProviderComputed => { path | TerraformReference },
         }
       ),
 
@@ -56,24 +56,24 @@
     if is_terraform_field_record value_ then
       std.contract.apply (TerraformField ctr) label value_
     else
-      { terraform_field_type = `Literal, value | (fun _l v => std.contract.apply ctr label v) = value_ },
+      { terraform_field_type = 'Literal, value | (fun _l v => std.contract.apply ctr label v) = value_ },
 
   provider_computed = fun path_ =>
-    { terraform_field_type = `ProviderComputed, path = path_ },
+    { terraform_field_type = 'ProviderComputed, path = path_ },
 
-  undefined = { terraform_field_type | default = `Undefined },
+  undefined = { terraform_field_type | default = 'Undefined },
 
   resolve_reference : Array String -> String
     = fun ns => "${%{std.string.join "." ns}}",
 
-  typeof : Dyn -> [| `TerraformField, `Array, `Other |]
+  typeof : Dyn -> [| 'TerraformField, 'Array, 'Other |]
     = fun v =>
       if is_terraform_field_record v then
-        `TerraformField
+        'TerraformField
       else if std.is_array v then
-        `Array
+        'Array
       else
-        `Other,
+        'Other,
 
   resolve_provider_computed =
     let { go, resolve_field_action, .. } = {
@@ -81,43 +81,43 @@
         = fun path field =>
           field.terraform_field_type
           |> match {
-            `Undefined =>
+            'Undefined =>
               {
-                action = `Delete,
+                action = 'Delete,
                 value = null
               },
-            `Literal =>
+            'Literal =>
               {
-                action = `KeepStop,
+                action = 'KeepStop,
                 value = field.value
               },
-            `Reference =>
+            'Reference =>
               {
-                action = `KeepStop,
+                action = 'KeepStop,
                 value = resolve_reference field.value
               },
-            `ProviderComputed =>
+            'ProviderComputed =>
               if path == field.path then
-                { action = `Delete, value = null }
+                { action = 'Delete, value = null }
               else
                 {
-                  action = `KeepStop,
+                  action = 'KeepStop,
                   value = resolve_reference field.path
                 }
           },
-      go | Array String -> Dyn -> { action : [| `KeepStop, `Continue, `Delete |], value : Dyn }
+      go | Array String -> Dyn -> { action : [| 'KeepStop, 'Continue, 'Delete |], value : Dyn }
         = fun path field =>
           typeof field
           |> match {
-            `TerraformField => resolve_field_action path field,
-            `Array =>
+            'TerraformField => resolve_field_action path field,
+            'Array =>
               {
-                action = `KeepStop,
+                action = 'KeepStop,
                 value = std.array.map resolve_provider_computed field
               },
-            `Other =>
+            'Other =>
               {
-                action = `Continue,
+                action = 'Continue,
                 value = field
               }
           },
@@ -146,7 +146,7 @@
     in go,
 
   is_defined_terraform_field_record | Dyn -> Bool
-    = fun x => is_terraform_field_record x && x.terraform_field_type != `Undefined,
+    = fun x => is_terraform_field_record x && x.terraform_field_type != 'Undefined,
 
   has_defined_field | String -> { _ : Dyn } -> Bool
     = fun name r => std.record.has_field name r && is_defined_terraform_field_record r."%{name}",
@@ -164,19 +164,19 @@
         && has_defined_field_path (std.array.drop_first path) r."%{field}",
 
   FieldDescriptor = {
-    prio | [| `Default, `Force |],
+    prio | [| 'Default, 'Force |],
     path | Array String,
     ..
   },
 
   ElaboratedField = {
-    prio | [| `Default, `Force |],
+    prio | [| 'Default, 'Force |],
     path | Array String,
     record | { _ : Dyn },
   },
 
   mergeable | { _ : Dyn } -> FieldDescriptor -> Bool
-    = fun r field => !(has_defined_field_path field.path r && field.prio == `Default),
+    = fun r field => !(has_defined_field_path field.path r && field.prio == 'Default),
 
   elaborate_field | Array String -> { _ : Dyn } -> FieldDescriptor -> Array ElaboratedField
     =
