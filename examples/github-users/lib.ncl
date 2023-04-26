@@ -1,7 +1,7 @@
 {
   uniq | Array Dyn -> Array Dyn =
       let go : { visited : { _ : {} }, out : Array Dyn } -> Dyn -> { visited : { _ : {} }, out : Array Dyn } = fun acc nxt =>
-          let as_str = std.serialize `Json nxt in
+          let as_str = std.serialize 'Json nxt in
           if std.record.has_field as_str acc.visited then
             acc
           else
