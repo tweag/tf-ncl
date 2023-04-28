@@ -190,8 +190,8 @@
             terraformProviders;
 
           lib = {
-            mkDevShell = args:
-              pkgs.mkShell {
+            mkDevShell =
+              args: pkgs.mkShell {
                 buildInputs = lib.attrValues
                   (pkgs.callPackage ./nix/devshell.nix
                     {
@@ -203,6 +203,13 @@
                   inputs.nickel.packages.${system}.lsp-nls
                   inputs.topiary.packages.${system}.default
                 ];
+                shellHook = ''
+                  cat <<EOF
+                    * Use 'link-schema' to produce 'tf-ncl-schema.ncl'
+                    * Use 'run-nickel' to evaluate 'main.ncl' to a Terraform deployment
+                    * Use 'run-terraform' to first evaluate 'main.ncl' and then run Terraform on the result
+                  EOF
+                '';
               };
           };
 
