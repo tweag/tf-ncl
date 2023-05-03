@@ -252,6 +252,13 @@
           '';
         };
 
+        github-simple = {
+          path = ./examples/github-simple;
+          description = ''
+            A very simple example of using the GitHub Terraform provider with Tf-Ncl.
+          '';
+        };
+
         default = hello-tf;
       };
     };
