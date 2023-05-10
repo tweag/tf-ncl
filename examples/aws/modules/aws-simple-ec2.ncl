@@ -3,7 +3,7 @@ let Utils = import "../utils.ncl" in
 {
   aws.simple.ec2.instances
     | {
-      _ : {
+      _ | {
         ami | String,
         type | String,
         public_key_name | String,
@@ -66,6 +66,6 @@ let Utils = import "../utils.ncl" in
             },
           }
       )
-    |> Utils.merge_array,
+    |> std.record.merge_all,
 }
 

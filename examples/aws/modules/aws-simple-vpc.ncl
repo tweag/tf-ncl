@@ -5,7 +5,7 @@ let Utils = import "../utils.ncl" in
 
   aws.simple.networks
     | {
-      _ : {
+      _ | {
         region
           | Aws.Region
           | default
@@ -34,7 +34,7 @@ let Utils = import "../utils.ncl" in
             }
           }
       )
-    |> Utils.merge_array,
+    |> std.record.merge_all,
 
   config =
     aws.simple.networks
@@ -107,6 +107,6 @@ let Utils = import "../utils.ncl" in
             },
           }
       )
-    |> Utils.merge_array,
+    |> std.record.merge_all,
 }
 

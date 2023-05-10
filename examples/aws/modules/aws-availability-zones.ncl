@@ -3,7 +3,7 @@ let Aws = import "./types.ncl" in
 {
   aws.availability_zones
     | {
-      _ : {
+      _ | {
         region | Aws.Region,
         data,
         path,
@@ -26,6 +26,6 @@ let Aws = import "./types.ncl" in
             },
           }
       )
-    |> Utils.merge_array,
+    |> std.record.merge_all,
 }
 
