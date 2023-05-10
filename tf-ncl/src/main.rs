@@ -54,9 +54,7 @@ impl<'a> RenderableSchema<'a> {
     }},
     Schema = {schema},
     TfNcl = {tfncl_lib} & {{
-        # The contract annotation can't be used until nickel#1056 is resolved
-        mkConfig #| Schema -> {{_: Dyn}}
-                 = fun v => v |> TfNcl.resolve_provider_computed |> TfNcl.remove_empty_records,
+        mkConfig = fun v => v |> TfNcl.resolve_provider_computed |> TfNcl.remove_empty_records,
     }},
     required_providers = {required_providers}
 }}",
