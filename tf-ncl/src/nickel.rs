@@ -1,26 +1,57 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::intermediate::{self, FieldDescriptor, GoSchema, Providers, WithProviders};
 use crate::nickel_builder::{self as builder, Types};
+use crate::terraform::{TFProviderSchema, TFSchema};
 use nickel_lang::term::array::{Array, ArrayAttrs};
 use nickel_lang::term::{MergePriority, RichTerm, Term};
 use nickel_lang::types::{DictTypeFlavour, TypeF};
 
 pub trait AsNickel {
-    fn as_nickel(&self) -> RichTerm;
+    fn as_nickel(&self, schemas: &mut HashMap<PathBuf, RichTerm>);
 }
 
-impl AsNickel for WithProviders<GoSchema> {
-    fn as_nickel(&self) -> RichTerm {
+impl AsNickel for TFProviderSchema {
+    fn as_nickel(&self, schemas: &mut HashMap<PathBuf, RichTerm>) {
+        let resources = self
+            .resource_schemas
+            .iter()
+            .map(|(resource, block_schema)| {
+                (
+                    PathBuf::new()
+                        .join("resource")
+                        .join(resource)
+                        .with_extension("ncl"),
+                    builder::Record::new().field("todo").no_value().build(),
+                )
+            });
+        let data = self.data_source_schemas.iter().map(|(data, block_schema)| {
+            (
+                PathBuf::new().join("data").join(data).with_extension("ncl"),
+                builder::Record::new().field("todo").no_value().build(),
+            )
+        });
+        schemas.extend(resources.chain(data))
+    }
+}
+
+pub trait AsNickelTerm {
+    fn as_nickel_term(&self) -> RichTerm;
+}
+
+impl AsNickelTerm for WithProviders<GoSchema> {
+    fn as_nickel_term(&self) -> RichTerm {
         as_nickel_record(&self.data.schema)
             .path(["terraform", "required_providers"])
-            .value(self.providers.as_nickel())
+            .value(self.providers.as_nickel_term())
             .build()
     }
 }
 
-impl AsNickel for Providers {
-    fn as_nickel(&self) -> RichTerm {
+impl AsNickelTerm for Providers {
+    fn as_nickel_term(&self) -> RichTerm {
         use builder::*;
         Record::from(self.0.iter().map(|(name, provider)| {
             Field::name(name).value(Record::from([
@@ -36,8 +67,8 @@ impl AsNickel for Providers {
     }
 }
 
-impl AsNickel for Vec<String> {
-    fn as_nickel(&self) -> RichTerm {
+impl AsNickelTerm for Vec<String> {
+    fn as_nickel_term(&self) -> RichTerm {
         Term::Array(
             Array::new(
                 self.iter()
@@ -52,12 +83,12 @@ impl AsNickel for Vec<String> {
     }
 }
 
-impl AsNickel for Vec<FieldDescriptor> {
-    fn as_nickel(&self) -> RichTerm {
+impl AsNickelTerm for Vec<FieldDescriptor> {
+    fn as_nickel_term(&self) -> RichTerm {
         Term::Array(
             Array::new(
                 self.iter()
-                    .map(|x| x.as_nickel())
+                    .map(|x| x.as_nickel_term())
                     .collect::<Vec<_>>()
                     .into_boxed_slice()
                     .into(),
@@ -68,8 +99,8 @@ impl AsNickel for Vec<FieldDescriptor> {
     }
 }
 
-impl AsNickel for FieldDescriptor {
-    fn as_nickel(&self) -> RichTerm {
+impl AsNickelTerm for FieldDescriptor {
+    fn as_nickel_term(&self) -> RichTerm {
         use builder::*;
 
         let priority = Term::Enum(if self.force {
@@ -211,8 +242,8 @@ impl AsNickelContracts for &intermediate::Type {
                     inner_contract,
                     Some(Types(TypeF::Flat(mk_app!(
                         Term::Var("TfNcl.ComputedFields".into()),
-                        prefix.as_nickel(),
-                        computed_fields.as_nickel()
+                        prefix.as_nickel_term(),
+                        computed_fields.as_nickel_term()
                     )))),
                 )
             }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::TryFrom};
 
 use serde::{Deserialize, Deserializer};
 
@@ -136,6 +136,46 @@ impl FieldDescriptor {
     }
 }
 
+#[derive(Debug)]
+pub struct SplitSchema {
+    pub resources: HashMap<String, Attribute>,
+    pub data_sources: HashMap<String, Attribute>,
+    pub provider_schema: HashMap<String, Attribute>,
+    pub core_schema: GoSchema,
+}
+
+#[derive(Debug)]
+pub enum SplittingError {
+    LeftoverComputedFields,
+    MissingBlock { field: &'static str },
+    ExpectedObject { field: &'static str },
+    ExpectedListOfObjects { field: String },
+    MissingProvider { provider: String },
+}
+
+impl Attribute {
+    pub fn into_object_content(self) -> Option<HashMap<String, Attribute>> {
+        match self.type_ {
+            Type::Object { open: _, content } => Some(content),
+            _ => None,
+        }
+    }
+
+    pub fn into_list_content(self) -> Option<HashMap<String, Attribute>> {
+        match self.type_ {
+            Type::List {
+                min: _,
+                max: _,
+                content,
+            } => match *content {
+                Type::Object { open: _, content } => Some(content),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+}
+
 impl GoSchema {
     pub fn push_down_computed_fields(self) -> Self {
         let Self {
@@ -149,5 +189,44 @@ impl GoSchema {
                 .collect(),
             schema,
         }
+    }
+
+    pub fn split_for_provider(
+        mut self,
+        provider: impl AsRef<str>,
+    ) -> Result<SplitSchema, SplittingError> {
+        if !self.computed_fields.is_empty() {
+            return Err(SplittingError::LeftoverComputedFields);
+        }
+
+        Ok(SplitSchema {
+            resources: self
+                .schema
+                .remove("resource")
+                .ok_or(SplittingError::MissingBlock { field: "resource" })?
+                .into_object_content()
+                .ok_or(SplittingError::ExpectedObject { field: "resource" })?,
+            data_sources: self
+                .schema
+                .remove("data")
+                .ok_or(SplittingError::MissingBlock { field: "data" })?
+                .into_object_content()
+                .ok_or(SplittingError::ExpectedObject { field: "data" })?,
+            provider_schema: self
+                .schema
+                .remove("provider")
+                .ok_or(SplittingError::MissingBlock { field: "provider" })?
+                .into_object_content()
+                .ok_or(SplittingError::ExpectedObject { field: "provider" })?
+                .remove(provider.as_ref())
+                .ok_or(SplittingError::MissingProvider {
+                    provider: String::from(provider.as_ref()),
+                })?
+                .into_list_content()
+                .ok_or(SplittingError::ExpectedListOfObjects {
+                    field: format!("provider.{}", provider.as_ref()),
+                })?,
+            core_schema: self,
+        })
     }
 }
