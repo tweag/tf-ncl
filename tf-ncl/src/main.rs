@@ -89,21 +89,22 @@ impl<'a, 'b> fmt::Display for Display<'a, 'b> {
 fn main() -> anyhow::Result<()> {
     let opts = Args::parse();
 
-    // let providers = get_providers(&opts)?;
     let go_schema = get_schema(&opts)?.push_down_computed_fields();
 
-    let split_schema = dbg!(go_schema.split_for_provider("github"));
+    let split_schema = dbg!(go_schema.split_for_provider("github")?);
 
-    Ok(())
+    let mut schema_terms = HashMap::from([(
+        PathBuf::from("core.nix"),
+        split_schema.core_schema.as_nickel_term(),
+    )]);
+    split_schema.as_nickel(&mut schema_terms);
 
-    // let doc: RenderableSchema = go_schema.with_providers(providers).into();
+    let doc = RenderableSchema {
+        schemas: schema_terms
+            .into_iter()
+            .map(|(k, v)| (k, v.pretty(&BoxAllocator).into_doc()))
+            .collect(),
+    };
 
-    // let doc = RenderableSchema {
-    //     schemas: schema_docs
-    //         .into_iter()
-    //         .map(|(k, v)| (k, v.pretty(&BoxAllocator).into_doc()))
-    //         .collect(),
-    // };
-
-    // doc.render(&opts.output_directory)
+    doc.render(&opts.output_directory)
 }

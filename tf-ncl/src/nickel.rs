@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use crate::intermediate::{self, FieldDescriptor, GoSchema, Providers, WithProviders};
+use crate::intermediate::{self, FieldDescriptor, GoSchema, Providers, SplitSchema, WithProviders};
 use crate::nickel_builder::{self as builder, Types};
 use crate::terraform::{TFProviderSchema, TFSchema};
 use nickel_lang::term::array::{Array, ArrayAttrs};
@@ -37,16 +37,50 @@ impl AsNickel for TFProviderSchema {
     }
 }
 
+impl AsNickel for SplitSchema {
+    fn as_nickel(&self, schemas: &mut HashMap<PathBuf, RichTerm>) {
+        schemas.extend(self.resources.iter().map(|(resource, schema)| {
+            match &schema.type_ {
+                intermediate::Type::Dictionary {
+                    inner,
+                    prefix: _,
+                    computed_fields: _,
+                } => match inner.as_ref() {
+                    intermediate::Type::Object { open, content } => (
+                        PathBuf::new()
+                            .join("resource")
+                            .join(resource)
+                            .with_extension("ncl"),
+                        as_nickel_record(content).set_open(*open).build(),
+                    ),
+                    _ => unimplemented!(),
+                },
+                _ => unimplemented!(),
+            }
+        }));
+
+        schemas.extend(self.data_sources.iter().map(|(data_source, schema)| {
+            (
+                PathBuf::new()
+                    .join("data")
+                    .join(data_source)
+                    .with_extension("ncl"),
+                schema
+                    .as_nickel_field(builder::Field::name(data_source))
+                    .with_record(builder::Record::new())
+                    .build(),
+            )
+        }));
+    }
+}
+
 pub trait AsNickelTerm {
     fn as_nickel_term(&self) -> RichTerm;
 }
 
-impl AsNickelTerm for WithProviders<GoSchema> {
+impl AsNickelTerm for GoSchema {
     fn as_nickel_term(&self) -> RichTerm {
-        as_nickel_record(&self.data.schema)
-            .path(["terraform", "required_providers"])
-            .value(self.providers.as_nickel_term())
-            .build()
+        as_nickel_record(&self.schema).build()
     }
 }
 

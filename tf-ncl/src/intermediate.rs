@@ -144,12 +144,17 @@ pub struct SplitSchema {
     pub core_schema: GoSchema,
 }
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum SplittingError {
+    #[error("leftover top-level computed fields found")]
     LeftoverComputedFields,
+    #[error("Missing top-level block {field}")]
     MissingBlock { field: &'static str },
+    #[error("expected {field} to be an object")]
     ExpectedObject { field: &'static str },
+    #[error("expected {field} to be a list of objects")]
     ExpectedListOfObjects { field: String },
+    #[error("missing provider {provider}")]
     MissingProvider { provider: String },
 }
 
@@ -199,17 +204,23 @@ impl GoSchema {
             return Err(SplittingError::LeftoverComputedFields);
         }
 
+        let resource = self
+            .schema
+            .remove("resource")
+            .ok_or(SplittingError::MissingBlock { field: "resource" })?;
+
+        let data = self
+            .schema
+            .remove("data")
+            .ok_or(SplittingError::MissingBlock { field: "data" })?;
+
         Ok(SplitSchema {
-            resources: self
-                .schema
-                .remove("resource")
-                .ok_or(SplittingError::MissingBlock { field: "resource" })?
+            resources: resource
+                .clone()
                 .into_object_content()
                 .ok_or(SplittingError::ExpectedObject { field: "resource" })?,
-            data_sources: self
-                .schema
-                .remove("data")
-                .ok_or(SplittingError::MissingBlock { field: "data" })?
+            data_sources: data
+                .clone()
                 .into_object_content()
                 .ok_or(SplittingError::ExpectedObject { field: "data" })?,
             provider_schema: self
@@ -226,7 +237,33 @@ impl GoSchema {
                 .ok_or(SplittingError::ExpectedListOfObjects {
                     field: format!("provider.{}", provider.as_ref()),
                 })?,
-            core_schema: self,
+            core_schema: {
+                self.schema.insert(
+                    String::from("resource"),
+                    Attribute {
+                        description: resource.description,
+                        optional: true,
+                        computed: false,
+                        type_: Type::Object {
+                            open: true,
+                            content: HashMap::new(),
+                        },
+                    },
+                );
+                self.schema.insert(
+                    String::from("data"),
+                    Attribute {
+                        description: data.description,
+                        optional: true,
+                        computed: false,
+                        type_: Type::Object {
+                            open: true,
+                            content: HashMap::new(),
+                        },
+                    },
+                );
+                self
+            },
         })
     }
 }
