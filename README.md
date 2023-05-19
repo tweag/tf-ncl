@@ -4,6 +4,15 @@ This repository contains tooling for generating
 [Nickel](https://github.com/tweag/nickel) contracts out of
 [Terraform](https://www.terraform.io) provider schemas.
 
+It enables configurations to be checked against provider specific contracts
+before calling Terraform to perform the deployment. Nickel can natively generate
+outputs as JSON, YAML or TOML. Since Terraform can accept its deployment
+configuration as JSON, you can straightforwardly export a Nickel configuration,
+adhering to the right format, to Terraform. Tf-Ncl provides a framework for
+ensuring a Nickel configuration has this specific format. Specifically, Tf-Ncl
+is a tool to generate Nickel contracts that describe the configuration schema
+expected by a set of Terraform providers.
+
 ## Starting a Tf-Ncl configuration
 The easiest way to get started is to use the `hello-tf` flake template:
 ```shell
