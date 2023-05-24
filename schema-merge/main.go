@@ -274,7 +274,7 @@ func wrap_block_type(path []string, labels []Label, bs *schema.BlockSchema, t sc
 	}
 }
 
-var special_open_block_paths = [...][]string{{"data"}, {"resource"}, {"provider"}, {"terraform", "backend"}}
+var special_open_block_paths = [...][]string{{"data"}, {"resource"}, {"provider"}, {"terraform", "backend"}, {"module", "_"}}
 
 func check_candidate(path []string, candidate []string) bool {
 	if len(candidate) != len(path) {
@@ -323,7 +323,7 @@ func assemble_blocks(computed_fields *[]FieldDescriptor, path []string, bs *sche
 			Computed: false,
 			Type: Type{
 				Tag:    Object,
-				Open:   false,
+				Open:   should_be_open(path),
 				Object: &obj,
 			},
 		})
