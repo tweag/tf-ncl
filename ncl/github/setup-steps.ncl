@@ -1,7 +1,7 @@
 [
   { uses = "actions/checkout@v3" },
   {
-    uses = "cachix/install-nix-action@v21",
+    uses = "cachix/install-nix-action@v22",
     name = "Installing Nix",
     with = {
       extra_nix_config = "experimental-features = nix-command flakes",
