@@ -187,7 +187,10 @@
 
           schemas = lib.mapAttrs
             (name: p: self.generateSchema.${system} (_: { ${name} = p; }))
-            terraformProviders;
+            terraformProviders
+          // {
+            terraform-core = self.generateSchema.${system} (_: { });
+          };
 
           lib = {
             mkDevShell =
