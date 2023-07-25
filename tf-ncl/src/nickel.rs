@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
 use crate::intermediate::{self, FieldDescriptor, GoSchema, Providers, WithProviders};
-use crate::nickel_builder::{self as builder, Types};
-use nickel_lang::term::array::{Array, ArrayAttrs};
-use nickel_lang::term::{MergePriority, RichTerm, Term};
-use nickel_lang::types::{DictTypeFlavour, TypeF};
+use crate::nickel_builder::{self as builder, Type};
+use nickel_lang_core::term::array::{Array, ArrayAttrs};
+use nickel_lang_core::term::{MergePriority, RichTerm, Term};
+use nickel_lang_core::typ::{DictTypeFlavour, TypeF};
 
 pub trait AsNickel {
     fn as_nickel(&self) -> RichTerm;
@@ -131,7 +131,7 @@ impl AsNickelField for &intermediate::Attribute {
 }
 
 pub trait AsNickelContracts {
-    fn as_nickel_contracts(&self) -> (Types, Option<Types>);
+    fn as_nickel_contracts(&self) -> (Type, Option<Type>);
 }
 
 enum PrimitiveType {
@@ -143,7 +143,7 @@ enum PrimitiveType {
 
 impl From<PrimitiveType> for RichTerm {
     fn from(t: PrimitiveType) -> Self {
-        use nickel_lang::term::Term::Var;
+        use nickel_lang_core::term::Term::Var;
         use PrimitiveType::*;
         match t {
             Dyn => Var("Dyn".into()).into(),
@@ -155,17 +155,17 @@ impl From<PrimitiveType> for RichTerm {
 }
 
 impl AsNickelContracts for &intermediate::Type {
-    fn as_nickel_contracts(&self) -> (Types, Option<Types>) {
+    fn as_nickel_contracts(&self) -> (Type, Option<Type>) {
         use intermediate::Type::*;
-        use nickel_lang::mk_app;
-        fn tfvar(inner: impl Into<RichTerm>) -> Types {
-            Types(TypeF::Flat(mk_app!(
+        use nickel_lang_core::mk_app;
+        fn tfvar(inner: impl Into<RichTerm>) -> Type {
+            Type(TypeF::Flat(mk_app!(
                 Term::Var("TfNcl.Tf".into()),
                 inner.into()
             )))
         }
 
-        fn primitive(inner: PrimitiveType) -> (Types, Option<Types>) {
+        fn primitive(inner: PrimitiveType) -> (Type, Option<Type>) {
             (tfvar(inner), None)
         }
 
@@ -181,13 +181,13 @@ impl AsNickelContracts for &intermediate::Type {
                 max: _,
                 content,
             } => (
-                Types(TypeF::Array(Box::new(
+                Type(TypeF::Array(Box::new(
                     content.as_ref().as_nickel_contracts().0,
                 ))),
                 None,
             ),
             Object { open, content } => (
-                Types(TypeF::Flat(
+                Type(TypeF::Flat(
                     builder::Record::from(
                         content
                             .iter()
@@ -203,13 +203,13 @@ impl AsNickelContracts for &intermediate::Type {
                 prefix,
                 computed_fields,
             } => {
-                let inner_contract = Types(TypeF::Dict {
+                let inner_contract = Type(TypeF::Dict {
                     type_fields: Box::new(inner.as_ref().as_nickel_contracts().0),
                     flavour: DictTypeFlavour::Contract,
                 });
                 (
                     inner_contract,
-                    Some(Types(TypeF::Flat(mk_app!(
+                    Some(Type(TypeF::Flat(mk_app!(
                         Term::Var("TfNcl.ComputedFields".into()),
                         prefix.as_nickel(),
                         computed_fields.as_nickel()

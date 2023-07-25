@@ -1,6 +1,7 @@
 use clap::Parser;
 use core::fmt;
 use pretty::{BoxAllocator, BoxDoc, Pretty};
+use serde::Deserialize;
 use std::{
     io::{self, stdout, Read},
     path::PathBuf,
@@ -32,7 +33,10 @@ fn get_schema(opts: &Args) -> anyhow::Result<GoSchema> {
         Box::new(std::io::stdin())
     };
 
-    Ok(serde_json::from_reader(schema_reader)?)
+    let mut deserializer = serde_json::Deserializer::from_reader(schema_reader);
+    deserializer.disable_recursion_limit();
+
+    Ok(GoSchema::deserialize(&mut deserializer)?)
 }
 
 struct RenderableSchema<'a> {

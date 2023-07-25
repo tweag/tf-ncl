@@ -8,7 +8,7 @@
     "tarball" = {
       name = "Upload Release Tarball",
       steps =
-        import "../../ncl/github/setup-steps.ncl"
+        (import "../../ncl/github/setup-steps.ncl")
         @ [
           {
             name = "Create Release Tarball",
