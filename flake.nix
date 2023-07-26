@@ -196,11 +196,10 @@
                   (pkgs.callPackage ./nix/devshell.nix
                     {
                       generateSchema = self.generateSchema.${system};
-                      inherit (inputs.nickel.packages.${system}) nickel;
+                      nickel = inputs.nickel.packages.${system}.nickel-lang-cli;
                     }
                     args) ++ [
-                  inputs.nickel.packages.${system}.nickel
-                  inputs.nickel.packages.${system}.lsp-nls
+                  inputs.nickel.packages.${system}.default
                   inputs.topiary.packages.${system}.default
                 ];
                 shellHook = ''

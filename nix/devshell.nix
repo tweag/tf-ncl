@@ -21,7 +21,7 @@ in
     set -e
     link-schema
     ${nickel}/bin/nickel export > main.tf.json <<EOF
-      (import "main.ncl" & {
+      ((import "main.ncl") & {
         ${extraNickelInput}
       }).renderable_config
     EOF

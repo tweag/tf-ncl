@@ -1,5 +1,5 @@
 use codespan::Files;
-use nickel_lang::{
+use nickel_lang_core::{
     identifier::Ident,
     parser::utils::{build_record, FieldPathElem},
     position::{RawSpan, TermPos},
@@ -7,7 +7,7 @@ use nickel_lang::{
         record::{self, FieldMetadata, RecordAttrs, RecordData},
         LabeledType, MergePriority, RichTerm, Term,
     },
-    types::{self, EnumRows, RecordRows, TypeF},
+    typ::{self, EnumRows, RecordRows, TypeF},
 };
 
 type StaticPath = Vec<Ident>;
@@ -35,18 +35,18 @@ pub struct Field<RB> {
     metadata: FieldMetadata,
 }
 
-pub struct Types(pub TypeF<Box<Types>, RecordRows, EnumRows>);
+pub struct Type(pub TypeF<Box<Type>, RecordRows, EnumRows>);
 
-impl From<TypeF<Box<Types>, RecordRows, EnumRows>> for Types {
-    fn from(value: TypeF<Box<Types>, RecordRows, EnumRows>) -> Self {
-        Types(value)
+impl From<TypeF<Box<Type>, RecordRows, EnumRows>> for Type {
+    fn from(value: TypeF<Box<Type>, RecordRows, EnumRows>) -> Self {
+        Type(value)
     }
 }
 
-impl From<Types> for types::Types {
-    fn from(t: Types) -> Self {
+impl From<Type> for typ::Type {
+    fn from(t: Type) -> Self {
         Self {
-            types: t
+            typ: t
                 .0
                 .map(|ty| Box::new(Self::from(*ty)), |rrow| rrow, |erow| erow),
             pos: TermPos::None,
@@ -82,9 +82,9 @@ impl<A> Field<A> {
         self
     }
 
-    pub fn contract(mut self, contract: impl Into<Types>) -> Self {
+    pub fn contract(mut self, contract: impl Into<Type>) -> Self {
         self.metadata.annotation.contracts.push(LabeledType {
-            types: types::Types::from(contract.into()),
+            typ: typ::Type::from(contract.into()),
             label: Default::default(),
         });
         self
@@ -92,21 +92,21 @@ impl<A> Field<A> {
 
     pub fn contracts<I>(mut self, contracts: I) -> Self
     where
-        I: IntoIterator<Item = Types>,
+        I: IntoIterator<Item = Type>,
     {
         self.metadata
             .annotation
             .contracts
             .extend(contracts.into_iter().map(|c| LabeledType {
-                types: c.into(),
+                typ: c.into(),
                 label: Default::default(),
             }));
         self
     }
 
-    pub fn types(mut self, t: impl Into<Types>) -> Self {
-        self.metadata.annotation.types = Some(LabeledType {
-            types: types::Types::from(t.into()),
+    pub fn types(mut self, t: impl Into<Type>) -> Self {
+        self.metadata.annotation.typ = Some(LabeledType {
+            typ: typ::Type::from(t.into()),
             label: Default::default(),
         });
         self
@@ -321,10 +321,10 @@ impl From<Record> for RichTerm {
 
 #[cfg(test)]
 mod tests {
-    use nickel_lang::{
+    use nickel_lang_core::{
         parser::utils::{build_record, FieldPathElem},
         term::{RichTerm, TypeAnnotation},
-        types::{TypeF, Types},
+        typ::{Type, TypeF},
     };
 
     use pretty_assertions::assert_eq;
@@ -589,8 +589,8 @@ mod tests {
                         metadata: FieldMetadata {
                             annotation: TypeAnnotation {
                                 contracts: vec![LabeledType {
-                                    types: Types {
-                                        types: TypeF::String,
+                                    typ: Type {
+                                        typ: TypeF::String,
                                         pos: TermPos::None
                                     },
                                     label: Default::default()
@@ -632,16 +632,16 @@ mod tests {
                             priority: MergePriority::Bottom,
                             not_exported: true,
                             annotation: TypeAnnotation {
-                                types: Some(LabeledType {
-                                    types: Types {
-                                        types: TypeF::Number,
+                                typ: Some(LabeledType {
+                                    typ: Type {
+                                        typ: TypeF::Number,
                                         pos: TermPos::None
                                     },
                                     label: Default::default()
                                 }),
                                 contracts: vec![LabeledType {
-                                    types: Types {
-                                        types: TypeF::String,
+                                    typ: Type {
+                                        typ: TypeF::String,
                                         pos: TermPos::None
                                     },
                                     label: Default::default()

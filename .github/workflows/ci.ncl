@@ -25,7 +25,7 @@
 
     job = {
       steps =
-        import "../../ncl/github/setup-steps.ncl"
+        (import "../../ncl/github/setup-steps.ncl")
         @ [
           {
             run = m%"
@@ -39,5 +39,5 @@
     }
   },
 }
-& import "../../ncl/github/matrix.ncl"
+& (import "../../ncl/github/matrix.ncl")
 
