@@ -1,5 +1,5 @@
 [
-  { uses = "actions/checkout@v3" },
+  { uses = "actions/checkout@v4" },
   {
     uses = "cachix/install-nix-action@v23",
     name = "Installing Nix",
