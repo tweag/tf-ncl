@@ -228,8 +228,7 @@
             if std.array.length acc > 1 then
               { "%{head}" = elaborated_record prefix (std.array.drop_first acc) field, .. }
             else
-              let forcing_contract = fun l v => provider_computed (prefix @ field.path) in
-              { "%{head}" | forcing_contract | default = {}, .. },
+              { "%{head}" | force = provider_computed (prefix @ field.path), .. },
       }
       in fun prefix r field => candidates r [] field |> filter_mergeable r |> std.array.map (elaborate prefix),
 

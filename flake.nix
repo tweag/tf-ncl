@@ -128,7 +128,7 @@
             trap 'rm -r -- "$temp_directory"' EXIT
 
             cd "$temp_directory"
-            nix flake init --accept-flake-config -t "${self}#github-users"
+            nix flake init --accept-flake-config -t "${self}#${template}"
             nix develop --accept-flake-config --override-input tf-ncl "${self}" -c run-nickel
           '';
 
@@ -255,6 +255,13 @@
           path = ./examples/github-simple;
           description = ''
             A very simple example of using the GitHub Terraform provider with Tf-Ncl.
+          '';
+        };
+
+        aws = {
+          path = ./examples/aws;
+          description = ''
+            An example demonstrating how to start building an abstraction around the AWS provider interface.
           '';
         };
 
