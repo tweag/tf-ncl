@@ -64,44 +64,22 @@ let Utils = import "../utils.ncl" in
 
             resource.aws_route_table."%{name}_default_rt" = {
               vpc_id = config.resource.aws_vpc."%{name}_vpc".id,
-              route = [
-                {
-                  cidr_block = "0.0.0.0/0",
-                  gateway_id = config.resource.aws_internet_gateway."%{name}_gw".id,
-                  carrier_gateway_id = "${null}",
-                  core_network_arn = "${null}",
-                  destination_prefix_list_id = "${null}",
-                  egress_only_gateway_id = "${null}",
-                  instance_id = "${null}",
-                  ipv6_cidr_block = "${null}",
-                  local_gateway_id = "${null}",
-                  network_interface_id = "${null}",
-                  transit_gateway_id = "${null}",
-                  vpc_endpoint_id = "${null}",
-                  vpc_peering_connection_id = "${null}",
-                  nat_gateway_id = "${null}",
-                },
-                {
-                  ipv6_cidr_block = "::/0",
-                  gateway_id = config.resource.aws_internet_gateway."%{name}_gw".id,
-                  cidr_block = "${null}",
-                  carrier_gateway_id = "${null}",
-                  core_network_arn = "${null}",
-                  destination_prefix_list_id = "${null}",
-                  egress_only_gateway_id = "${null}",
-                  instance_id = "${null}",
-                  local_gateway_id = "${null}",
-                  network_interface_id = "${null}",
-                  transit_gateway_id = "${null}",
-                  vpc_endpoint_id = "${null}",
-                  vpc_peering_connection_id = "${null}",
-                  nat_gateway_id = "${null}",
-                }
-              ],
-              tags."Name" = "Tf-Ncl %{name} Default Route",
+              tags."Name" = "Tf-Ncl %{name} Internet Route Table",
             },
 
-            resource.aws_route_table_association."%{name}_public_subnet_asso" = {
+            resource.aws_route."%{name}_default_route" = {
+              route_table_id = config.resource.aws_route_table."%{name}_default_rt".id,
+              destination_cidr_block = "0.0.0.0/0",
+              gateway_id = config.resource.aws_internet_gateway."%{name}_gw".id,
+            },
+
+            resource.aws_route."%{name}_default6_route" = {
+              route_table_id = config.resource.aws_route_table."%{name}_default_rt".id,
+              destination_ipv6_cidr_block = "::/0",
+              gateway_id = config.resource.aws_internet_gateway."%{name}_gw".id,
+            },
+
+            resource.aws_route_table_association."%{name}_public_subnet_association" = {
               subnet_id = config.resource.aws_subnet."%{name}".id,
               route_table_id = config.resource.aws_route_table."%{name}_default_rt".id,
             },
