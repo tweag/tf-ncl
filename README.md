@@ -22,8 +22,8 @@ This will leave you with a `flake.nix` file containing some glue code for
 getting a Nickel contract out of `tf-ncl`, evaluating a Nickel configuration
 and calling Terraform. It's as easy as
 ```shell
-nix run .#terraform -- hello-tf.ncl init
-nix run .#terraform -- hello-tf.ncl apply
+nix develop -c run-terraform init
+nix develop -c run-terraform apply
 ```
 
 Without Nix it's a bit more complicated. You will need to obtain the Nickel
