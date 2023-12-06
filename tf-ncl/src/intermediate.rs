@@ -112,7 +112,7 @@ impl FieldDescriptor {
     fn push_down(self, schema: &mut HashMap<String, Attribute>) -> Option<Self> {
         let (prefix, rest) = self.split_at_first_wildcard();
         let Some(attr) = attribute_at_path(schema, prefix) else {
-            return Some(self)
+            return Some(self);
         };
         match &mut attr.type_ {
             Type::Dictionary {
