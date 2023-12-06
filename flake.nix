@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     utils.url = "github:numtide/flake-utils";
     nickel.url = "github:tweag/nickel";
     topiary.url = "github:tweag/topiary";
@@ -34,7 +34,9 @@
 
           pkgs = import inputs.nixpkgs {
             localSystem = { inherit system; };
-            config = { };
+            config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
+              "terraform"
+            ];
             overlays = [
               (import inputs.rust-overlay)
             ];
