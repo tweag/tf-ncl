@@ -80,7 +80,7 @@
 
             src = ./schema-merge;
 
-            vendorHash = "sha256-HQQQlOqjI4EAB1JNhFmjt9SQrF2wOh6C7hrR8So0dxs=";
+            vendorHash = "sha256-JWHyBLu5hqO+ed2SwdmLabwbPeKAM30UirfksI3aSPc=";
           };
 
           eval-github-yaml = pkgs.writeShellScript "eval-github-yaml" ''
