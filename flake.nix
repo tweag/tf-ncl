@@ -8,17 +8,13 @@
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "utils";
     };
     crane = {
       url = "github:ipetkov/crane";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
-
     pre-commit-hooks = {
       url = "github:cachix/pre-commit-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.flake-utils.follows = "utils";
     };
   };
   nixConfig = {
@@ -163,7 +159,7 @@
                   '';
                 in
                 pkgs.runCommand "check-${name}" { } ''
-                  ${inputs.nickel.packages.${system}.default}/bin/nickel export -f ${conf} > $out
+                  ${inputs.nickel.packages.${system}.default}/bin/nickel export ${conf} > $out
                 ''
               ))
               self.schemas.${system}) //
