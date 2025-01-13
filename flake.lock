@@ -352,11 +352,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1736344531,
-        "narHash": "sha256-8YVQ9ZbSfuUk2bUf2KRj60NRraLPKPS0Q4QFTbc+c2c=",
+        "lastModified": 1736701207,
+        "narHash": "sha256-jG/+MvjVY7SlTakzZ2fJ5dC3V1PrKKrUEOEE30jrOKA=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "bffc22eb12172e6db3c5dde9e3e5628f8e3e7912",
+        "rev": "ed4a395ea001367c1f13d34b1e01aa10290f67d6",
         "type": "github"
       },
       "original": {
@@ -484,11 +484,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1736476219,
-        "narHash": "sha256-+qyv3QqdZCdZ3cSO/cbpEY6tntyYjfe1bB12mdpNFaY=",
+        "lastModified": 1736735482,
+        "narHash": "sha256-QOA4jCDyyUM9Y2Vba+HSZ/5LdtCMGaTE/7NkkUzBr50=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "de30cc5963da22e9742bbbbb9a3344570ed237b9",
+        "rev": "cf960a1938ee91200fe0d2f7b2582fde2429d562",
         "type": "github"
       },
       "original": {
@@ -571,11 +571,11 @@
         "tree-sitter-nickel": "tree-sitter-nickel"
       },
       "locked": {
-        "lastModified": 1734539573,
-        "narHash": "sha256-eWWP/n7xNEpBvM/45lZxR953PprXgca2kfvZNSOAsfM=",
+        "lastModified": 1736519392,
+        "narHash": "sha256-7lyNgi+ZP05ZzHKL1s2xs4bOOA5mkEHpNkeV4xYbDbo=",
         "owner": "tweag",
         "repo": "topiary",
-        "rev": "f35eee44fd680a41f92421e0fecd8dead5d094b3",
+        "rev": "76456f203094abf0cd6b19054fa9a6ef26ded977",
         "type": "github"
       },
       "original": {
