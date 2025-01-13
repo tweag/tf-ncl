@@ -2,8 +2,14 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     utils.url = "github:numtide/flake-utils";
-    nickel.url = "github:tweag/nickel";
-    topiary.url = "github:tweag/topiary";
+    nickel = {
+      url = "github:tweag/nickel";
+      inputs.crane.follows = "crane";
+    };
+    topiary = {
+      url = "github:tweag/topiary";
+      inputs.crane.follows = "crane";
+    };
     import-cargo.url = "github:edolstra/import-cargo";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
