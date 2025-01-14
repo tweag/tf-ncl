@@ -10,7 +10,6 @@
       url = "github:tweag/topiary";
       inputs.crane.follows = "crane";
     };
-    import-cargo.url = "github:edolstra/import-cargo";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
