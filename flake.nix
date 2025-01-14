@@ -195,14 +195,14 @@
 
           lib = {
             mkDevShell =
-              args: pkgs.mkShell {
+              { providers, extraNickelInput ? "", packages ? [ ] }: pkgs.mkShell {
                 buildInputs = lib.attrValues
                   (pkgs.callPackage ./nix/devshell.nix
                     {
                       generateSchema = self.generateSchema.${system};
                       nickel = inputs.nickel.packages.${system}.nickel-lang-cli;
                     }
-                    args) ++ [
+                    { inherit providers extraNickelInput; }) ++ packages ++ [
                   inputs.nickel.packages.${system}.default
                   inputs.topiary.packages.${system}.default
                 ];
