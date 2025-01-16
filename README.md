@@ -32,7 +32,7 @@ nix develop -c run-terraform apply
 
 Without Nix it's a bit more complicated. You will need to obtain the Nickel
 contract using the tools in this repository. Take a look at [the working
-principle](how) for an overview of the process. The most involved step will be
+principle](#how) for an overview of the process. The most involved step will be
 calling `schema-merge` with extracted Terraform provider schemas, see [the nix
 code](nix/terraform_schema.nix) for inspiration.
 
