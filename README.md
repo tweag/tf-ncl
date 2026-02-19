@@ -30,6 +30,96 @@ nix develop -c run-terraform init
 nix develop -c run-terraform apply
 ```
 
+### Using `mkTfNcl` in Your Own Flake
+
+The `mkTfNcl` function creates a Terraform wrapper that:
+- Automatically generates Nickel contracts from provider schemas
+- Uses [prj-spec](https://github.com/numtide/prj-spec) to manage data directories
+- Exports Nickel configurations as Terraform JSON
+
+**Why prj-spec?**
+
+Terraform provider schemas grow with each plugin. If you have 10 deployment tasks with different providers, the combined schema becomes huge, causing Nickel export to slow down significantly. With prj-spec:
+
+- **Schema modularization**: Each task gets its own schema at `$PRJ_DATA_DIR/tf-ncl/<name>/schema.ncl`
+- **Faster exports**: Export only the schema needed for the specific task
+- **Temp file management**: Automatically manages generated `.tf.json` files
+
+**Why terraform-backend-git?**
+
+For GitOps workflows, storing Terraform state in Git provides:
+- **State versioning**: Track state changes with Git history
+- **Collaboration**: Share state via Git branches/PRs
+- **Audit trail**: Full history of infrastructure changes
+
+Default data path: `$PRJ_DATA_DIR/tf-ncl/<name>/`
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | string | Project name (used for data directory) |
+| `nixpkgs` | Nixpkgs | Nixpkgs instance |
+| `providers` | function | Provider selector, e.g. `p: { inherit (p) aws null; }` |
+| `nickel` | package | Nickel binary (optional, defaults to nixpkgs.nickel) |
+| `terraform` | package | Terraform binary (optional, defaults to nixpkgs.opentofu) |
+| `extraNickelInput` | string | Extra Nickel input (optional) |
+| `terraform-backend-git` | attrs | Git backend config for GitOps (optional) |
+
+**Example in your flake:**
+
+```nix
+{
+  inputs = {
+    tf-ncl.url = "github:tweag/tf-ncl";
+    utils.url = "github:numtide/flake-utils";
+  };
+
+  outputs = inputs: inputs.utils.lib.eachDefaultSystem (system:
+    let
+      pkgs = import inputs.nixpkgs { inherit system; };
+    in
+    {
+      apps = {
+        default = inputs.tf-ncl.lib.${system}.mkTfNcl {
+          name = "my-project";
+          nixpkgs = pkgs;
+          providers = p: {
+            inherit (pkgs.terraform-providers) null aws;
+          };
+        };
+      };
+    });
+}
+```
+
+**Usage:**
+
+```console
+# The wrapper expects: <ncl-file> <terraform-command> [args...]
+nix run .#my-project main.ncl init
+nix run .#my-project main.ncl plan
+nix run .#my-project main.ncl apply
+```
+
+The wrapper will:
+1. Link schema to `$PRJ_DATA_DIR/tf-ncl/my-project/schema.ncl`
+2. Export Nickel config to `$PRJ_DATA_DIR/tf-ncl/my-project/main.tf.json`
+3. Run Terraform in that directory
+
+**Access devshell:**
+
+The wrapper exposes `passthru.devshell` for entering a development shell with all required tools:
+
+```nix
+# In your flake outputs:
+devShells.default = inputs.tf-ncl.lib.${system}.mkTfNcl {
+  name = "my-project";
+  nixpkgs = pkgs;
+  providers = p: { inherit (pkgs.terraform-providers) null; };
+}.passthru.devshell
+```
+
 Without Nix it's a bit more complicated. You will need to obtain the Nickel
 contract using the tools in this repository. Take a look at [the working
 principle](#how) for an overview of the process. The most involved step will be

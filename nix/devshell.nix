@@ -1,4 +1,4 @@
-{ lib, writeShellScriptBin, terraform, generateSchema, nickel }:
+{ lib, writeShellScriptBin, terraform, generateSchema, nickel, terraformProviders }:
 {
   # A function returning an attrset mapping local names for providers to provider derivations from nixpkgs
   # It will be passed an attrset with all available providers from nixpkgs
@@ -6,8 +6,8 @@
 , extraNickelInput ? ""
 }:
 let
-  ncl-schema = generateSchema providers;
-  terraform-with-plugins = terraform.withPlugins (p: lib.attrValues (providers p));
+  ncl-schema = generateSchema terraformProviders terraform providers;
+  terraform-with-plugins = terraform.withPlugins (p: lib.attrValues (providers terraformProviders));
 in
 {
   terraform = terraform-with-plugins;
