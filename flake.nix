@@ -175,25 +175,41 @@
 
           inherit terraformProviders;
 
-          generateJsonSchema = providerFn: pkgs.callPackage
+          generateJsonSchema = terraformProviders: terraform: providerFn: pkgs.callPackage
             (import ./nix/terraform_schema.nix (providerFn terraformProviders))
-            { inherit (self.packages.${system}) schema-merge; };
+            { inherit (self.packages.${system}) schema-merge; inherit terraform; };
 
-          generateSchema = providerFn: pkgs.callPackage
+          generateSchema = terraformProviders: terraform: providerFn: pkgs.callPackage
             ./nix/nickel_schema.nix
-            { jsonSchema = self.generateJsonSchema.${system} providerFn; inherit (self.packages.${system}) tf-ncl; };
+            { jsonSchema = self.generateJsonSchema.${system} terraformProviders terraform providerFn; inherit (self.packages.${system}) tf-ncl; };
 
           schemas = lib.mapAttrs
-            (name: p: self.generateSchema.${system} (_: { ${name} = p; }))
+            (name: p: self.generateSchema.${system} pkgs.terraform (_: { ${name} = p; }))
             terraformProviders;
 
           lib = {
+            examples = {
+              test = pkgs.terraform-providers.actualProviders;
+              hello-tf = self.lib.${system}.mkTfNcl {
+                name = "hello-tf";
+                nixpkgs = pkgs;
+                providers = p: {
+                  inherit (p) hashicorp_null;
+                };
+              };
+            };
+            mkTfNcl = import ./nix/mkTfNcl.nix {
+              generateSchema = self.generateSchema.${system};
+              nixpkgs = pkgs;
+            };
             mkDevShell =
               { providers, extraNickelInput ? "", packages ? [ ] }: pkgs.mkShell {
                 buildInputs = lib.attrValues
                   (pkgs.callPackage ./nix/devshell.nix
                     {
                       generateSchema = self.generateSchema.${system};
+                      terraform = pkgs.terraform;
+                      teraformProviders = self.terraformProviders.${system};
                       nickel = pkgs.nickel;
                     }
                     { inherit providers extraNickelInput; }) ++ packages ++ [
